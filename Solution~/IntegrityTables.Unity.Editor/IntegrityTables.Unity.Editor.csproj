@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>Tables.Unity.Editor</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="../IntegrityTables.Unity/IntegrityTables.Unity.csproj" />
+      <ProjectReference Include="../IntegrityTables/IntegrityTables.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="UnityEditor">
+        <HintPath>D:/Program Files/Unity Hub/Editor/6000.1.1f1/Editor/Data/Managed/UnityEditor.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine">
+        <HintPath>D:/Program Files/Unity Hub/Editor/6000.1.1f1/Editor/Data/Managed/UnityEngine.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+    <Target Name="CustomAfterBuild" AfterTargets="Build">
+        <ItemGroup>
+            <_FilesToCopy Include="$(OutputPath)**/$(AssemblyName).dll"/>
+            <_FilesToCopy Include="$(OutputPath)**/$(AssemblyName).pdb"/>
+        </ItemGroup>
+        <Copy SourceFiles="@(_FilesToCopy)" DestinationFolder="$(OutputPath)../../../../../UnityPackage/"/>
+    </Target>
+
+</Project>

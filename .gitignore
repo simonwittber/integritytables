@@ -1,0 +1,15 @@
+bin/
+obj/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+UnityPackage/Projects~/UnityDemo/*.csproj
+UnityPackage/Projects~/UnityDemo/*.sln
+UnityPackage/Projects~/UnityDemo/Temp
+UnityPackage/Projects~/UnityDemo/Logs
+UnityPackage/Projects~/UnityDemo/UserSettings
+UnityPackage/Projects~/UnityDemo/Library
+UnityPackage/Projects~/UnityDemo/ProjectSettings
+**.idea
+**DotSettings.user**
+**.Artifacts**

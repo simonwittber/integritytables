@@ -1,0 +1,6 @@
+{
+  "displayName": "Tables",
+  "name": "com.dffrnt.tables",
+  "version": "0.0.1",
+  "description": "Implementation of relational table storage."
+}
