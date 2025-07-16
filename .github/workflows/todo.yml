@@ -1,0 +1,15 @@
+name: Create TODO issues
+
+on:
+  push:
+    branches:
+      - main  # or whichever branch you want to monitor
+
+jobs:
+  todos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: alstr/todo-to-issue-action@v4
+        with:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
