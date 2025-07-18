@@ -13,19 +13,19 @@ public sealed class Context<T> : IDisposable, IAsyncDisposable where T : class
         get
         {
             if(_current.Value == null)
-                throw new InvalidOperationException("No ambient singleton is currently set.");
+                throw new InvalidOperationException("No ambient context is currently set.");
             return _current.Value;
         }
     }
 
     private readonly T? _previous;
 
-    public Context(T singleton)
+    public Context(T context)
     {
-        if(singleton == null) 
-            throw new ArgumentNullException(nameof(singleton), "singleton cannot be null.");
+        if(context == null) 
+            throw new ArgumentNullException(nameof(context), "context cannot be null.");
         _previous      = _current?.Value;
-        _current!.Value = singleton;
+        _current!.Value = context;
     }
 
     // synchronous dispose

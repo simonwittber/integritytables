@@ -41,4 +41,5 @@ public partial class Table<T>  where T : struct, IEquatable<T>
             _keyGenerator.Reset(maxKey);
         }
     }
+    
 }

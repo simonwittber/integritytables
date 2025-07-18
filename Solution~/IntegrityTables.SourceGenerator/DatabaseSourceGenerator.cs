@@ -39,15 +39,16 @@ public partial class DatabaseSourceGenerator : IIncrementalGenerator
         RowContainerSourceGenerator.GenerateCode(context, model);
         TableIndexSourceGenerator.GenerateCode(context, model);
         ServiceSourceGenerator.GenerateCode(context, model);
-        PersistenceSourceGenerator.GenerateCode(context, model);
+        // PersistenceSourceGenerator.GenerateCode(context, model);
         ViewModelSourceGenerator.GenerateCode(context, model);
+        // EntityExtensionsGenerator.GenerateCode(context, model);
         if (model.GenerateForUnity)
         {
             ScriptableObjectSourceGenerator.GenerateScriptableDatabaseCode(context, model);
             ScriptableObjectSourceGenerator.GenerateScriptableViewCode(context, model);
             ScriptableObjectSourceGenerator.GenerateScriptableRowCode(context, model);
         }
-
+        
         var sb = new StringBuilder();
 
 
