@@ -28,7 +28,7 @@ public class PagedMapBenchmarks
         {
             values[i] = i + 1;
             keys[i] = i;
-            smallKeys [i] = i % (N / 10000); // reduce the key space to match the use case of PagedMap
+            smallKeys[i] = i % (N / 10000); // reduce the key space to match the use case of PagedMap
         }
         // shuffle  keys
         for (var i = 0; i < N; i++)
