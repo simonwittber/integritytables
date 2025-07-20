@@ -239,7 +239,7 @@ using IntegrityTables;
             {
                 // if field is Unique, this is a one to one relationship, otherwise it's a one to many relationship
                 if (field.IsUnique)
-                    sb.AppendLine($"        private Dictionary<int, int> map_{field.Name} = new(); // {field.Name} is a 1 to 1 relationship, so we use a map to provide the GetBy methods, and the list below for Observability");
+                    sb.AppendLine($"        private PagedMap map_{field.Name} = new(); // {field.Name} is a 1 to 1 relationship, so we use a map to provide the GetBy methods, and the list below for Observability");
                 sb.AppendLine($"        private Dictionary<int, ObservableList<int>> {field.Name} = new();");
             }
         }
