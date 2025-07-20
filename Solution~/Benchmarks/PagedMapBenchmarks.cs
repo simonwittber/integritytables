@@ -48,7 +48,7 @@ public class PagedMapBenchmarks
         {
             // we use a smaller set of keys, as PagedMap is designed to optimize it's memory usage
             // for a smaller range of keys, so we use keys % (N/10000) to reduce the key space
-            // as compared to the full range of keys which muse be used with IdMap and Dictionary
+            // as compared to the full range of keys which must be used with IdMap and Dictionary
             var key = smallKeys[i];
             _paged[key] = values[i];
             values[i] = _paged[key];
