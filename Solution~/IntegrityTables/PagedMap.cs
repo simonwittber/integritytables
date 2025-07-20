@@ -22,7 +22,10 @@ public class PagedMap
         while (_pages.Count <= pageIndex)
             _pages.Add(null);
         if (_pages[pageIndex] == null)
-            _pages[pageIndex] = Enumerable.Repeat(-1, PageSize).ToArray();
+        {
+            _pages[pageIndex] = new int[PageSize];
+            Array.Fill(_pages[pageIndex], -1);
+        }
     }
 
     public void Remove(int key) => this[key] = -1;
