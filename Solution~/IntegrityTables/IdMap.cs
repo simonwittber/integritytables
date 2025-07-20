@@ -1,7 +1,7 @@
 using System;
 
 namespace IntegrityTables;
- 
+
 public class IdMap
 {
     private int[] _map;
