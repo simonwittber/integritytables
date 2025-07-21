@@ -6,7 +6,7 @@ namespace IntegrityTables.Benchmarks;
 
 [MarkdownExporterAttribute.GitHub]
 [SimpleJob(RuntimeMoniker.Net90, launchCount: 1, warmupCount: 3, iterationCount: 100)]
-[MemoryDiagnoser]
+[MemoryDiagnoser(false)]
 public class PagedMapBenchmarks
 {
 
@@ -43,7 +43,7 @@ public class PagedMapBenchmarks
     [Benchmark()]
     public void PagedAddGet()
     {
-        var _paged = new PagedMap();
+        var _paged = new PagedIntegerMap();
         for (var i = 0; i < N; i++)
         {
             // we use a smaller set of keys, as PagedMap is designed to optimize it's memory usage
@@ -87,6 +87,30 @@ public class PagedMapBenchmarks
         for (var i = 0; i < N; i++)
         {
             var key = smallKeys[i];
+            _dict[key] = values[i];
+            values[i] = _dict[key];
+        }
+    }
+    
+    [Benchmark()]
+    public void PreAllocatedDictAddGetVsPagedMap()
+    {
+        var _dict = new Dictionary<int, int>(N/10000);
+        for (var i = 0; i < N; i++)
+        {
+            var key = smallKeys[i];
+            _dict[key] = values[i];
+            values[i] = _dict[key];
+        }
+    }
+    
+    [Benchmark()]
+    public void PreAllocatedDictAddGetVsIdMap()
+    {
+        var _dict = new Dictionary<int, int>(N);
+        for (var i = 0; i < N; i++)
+        {
+            var key = keys[i];
             _dict[key] = values[i];
             values[i] = _dict[key];
         }

@@ -8,7 +8,7 @@ namespace IntegrityTables;
 // IdMap is preferred for primary key to index mapping, as we know that the keys start from 0 and are dense.
 // PagedMap is designed for cases where the keys are sparse or large, and we want to minimize memory usage.
 
-public class PagedMap
+public class PagedIntegerMap : IIntegerMap
 {
     private const int PageBits = 10;          // 1024 entries per page
     private const int PageSize = 1 << PageBits;
@@ -29,6 +29,11 @@ public class PagedMap
     }
 
     public void Remove(int key) => this[key] = -1;
+
+    public bool ContainsKey(int id)
+    {
+        return this[id] != -1;
+    }
 
     public bool TryGetValue(int key, out int value)
     {
@@ -52,6 +57,17 @@ public class PagedMap
             var pageIndex = key >> PageBits;
             EnsurePage(pageIndex);
             _pages[pageIndex][key & PageMask] = value;
+        }
+    }
+
+    public void Clear()
+    {
+        foreach (var page in _pages)
+        {
+            if (page != null)
+            {
+                Array.Fill(page, -1);
+            }
         }
     }
 }
