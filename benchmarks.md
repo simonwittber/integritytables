@@ -11,7 +11,7 @@ IdMap is used for primary keys, where the range is 0 - N and there are few holes
 
 PagedMap is used for foreign keys, where the range could be anything with many holes. The benchmark below is also specialised for this case. This benchmark cannot be used to compare IdMap to PagedMap, it only compares with Dictionary<int, int> with equivalent usage.
 
-IdMap tests are with keys with a full range of 0 - 1000000, PagedMap tests have the same range but only use a subset of 100 keys out of the possible 1000000. This mirrors a potential real worl scenario where a parent table would have 100 related rows in another table.
+IdMap tests are with keys with a full range of 0 - 1000000, PagedMap tests have the same range but only use a subset of 100 keys out of the possible 1000000. This mirrors a potential real world scenario where a parent table would have 100 related rows in another table.
 
 
 | Method                           | Mean      | Error     | StdDev    | Median    | Op/s   | Allocated   |
