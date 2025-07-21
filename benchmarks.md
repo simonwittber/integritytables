@@ -6,7 +6,7 @@ See the [Benchmark Project](Solution~/Benchmarks) for source of the below tables
 
 Integrity Tables uses specialised structures for primary key and foreign key indexes, instead of using Dictionary<int,int>
 
-IdMap ised used for primary keys, where the range is 0 - N and there are few holes. The benchmark below is specialised for this use case.
+IdMap is used for primary keys, where the range is 0 - N and there are few holes. The benchmark below is specialised for this use case.
 
 
 PagedMap is used for foreign keys, where the range could be anything with many holes. The benchmark below is also specialised for this case. This benchmark cannot be used to compare IdMap to PagedMap, it only compares with Dictionary<int, int> with equivalent usage.
