@@ -2,6 +2,7 @@
 
 A lightweight, in-memory, code-generated database management system for C# applications. Uses source generators to define your schema as struct types and get fully-typed, allocation-free APIs for CRUD operations, relationships, transactions, triggers, indexes, and view models. Focus is speed and zero or low allocation code.
 For more documentation, see the [Documentation Tests](Solution~/DocumentationTests).
+
 ## Features
 - Check constraints
 - Unique constraints and Indexes
@@ -11,6 +12,7 @@ For more documentation, see the [Documentation Tests](Solution~/DocumentationTes
 - Row level observers
 - View model generation
 - Transactions (Change Sets)
+- [Benchmarks](benchmarks.md)
 
 ## Tested
 
