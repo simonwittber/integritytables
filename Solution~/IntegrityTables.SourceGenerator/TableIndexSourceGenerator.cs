@@ -211,14 +211,22 @@ using IntegrityTables;
 
                 sb.AppendLine($@"
             // {DatabaseSourceGenerator.GenerationStamp()}
-            public static ObservableList<{field.QualifiedTypeName}> SelectBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id) 
+            public static QueryByIdEnumerator<{field.TableModel.QualifiedTypeName}> SelectBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id) 
+            {{
+                var db = Context<{table.DatabaseModel.DatabaseSymbol.Name}>.Current;
+                var ids = db.{field.TableModel.FacadeName}Index.SelectBy{field.CapitalizedName}(id);
+                return new QueryByIdEnumerator<{field.TableModel.QualifiedTypeName}>(table, ids);
+            }}
+
+            // {DatabaseSourceGenerator.GenerationStamp()}
+            public static ObservableList<{field.QualifiedTypeName}> ObserveBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id) 
             {{
                 var db = Context<{table.DatabaseModel.DatabaseSymbol.Name}>.Current;
                 return db.{field.TableModel.FacadeName}Index.SelectBy{field.CapitalizedName}(id);
             }}
 
             // {DatabaseSourceGenerator.GenerationStamp()}
-            public static bool TrySelectBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id, out ObservableList<{field.QualifiedTypeName}> values) 
+            public static bool TryObserveBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id, out ObservableList<{field.QualifiedTypeName}> values) 
             {{
                 var db = Context<{table.DatabaseModel.DatabaseSymbol.Name}>.Current;
                 return db.{field.TableModel.FacadeName}Index.TrySelectBy{field.CapitalizedName}(id, out values);

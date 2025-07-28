@@ -10,10 +10,9 @@ public static partial class ModelBuilder
     private const string Namespace = "IntegrityTables";
     private const string TableAttributeName = "GenerateTableAttribute";
     private const string ServiceAttributeName = "GenerateServiceAttribute";
+    private const string SystemAttributeName = "GenerateSystemAttribute";
 
-
-
-    public static DatabaseModel Build(SourceProductionContext context, INamedTypeSymbol databaseClass, ImmutableArray<INamedTypeSymbol> allTableStructs, ImmutableArray<INamedTypeSymbol> allServiceClasses)
+    public static DatabaseModel Build(SourceProductionContext context, INamedTypeSymbol databaseClass, ImmutableArray<INamedTypeSymbol> allTableStructs, ImmutableArray<INamedTypeSymbol> allServiceClasses, ImmutableArray<INamedTypeSymbol> allSystemClasses)
     {
         var model = new DatabaseModel
         {
@@ -49,6 +48,14 @@ public static partial class ModelBuilder
             if(serviceModel != null)
                 model.ServiceModels.Add(serviceModel);
         }
+
+        var systemClasses = FilterForForDatabaseType(allSystemClasses, databaseClass, $"{Namespace}.{SystemAttributeName}").ToImmutableArray();
+        foreach (var systemClass in systemClasses)
+        {
+            var systemModel = BuildSystemModel(context, model, systemClass);
+            if(systemModel != null)
+                model.SystemModels.Add(systemModel);
+        }
         
         CollectOnTablesCreatedMethods(context, databaseClass, model);
         BuildTableFieldModels(context, model);
@@ -73,6 +80,72 @@ public static partial class ModelBuilder
         attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == $"{Namespace}.{ServiceAttributeName}");
         
         return serviceModel;
+    }
+
+    private static SystemModel BuildSystemModel(SourceProductionContext context, DatabaseModel model, INamedTypeSymbol systemClass)
+    {
+        var systemModel = new SystemModel()
+        {
+            SystemSymbol = systemClass
+        };
+
+        // Find the Execute method and analyze its parameters
+        var executeMethod = systemClass.GetMembers("Execute")
+            .OfType<IMethodSymbol>()
+            .FirstOrDefault();
+
+        if (executeMethod != null)
+        {
+            foreach (var parameter in executeMethod.Parameters)
+            {
+                bool isIList = false;
+                INamedTypeSymbol tableType = null;
+
+                // Check if the parameter type is Row<T> where T is a table type
+                if (parameter.Type is INamedTypeSymbol parameterType && 
+                    parameterType.IsGenericType && 
+                    parameterType.Name == "Row" &&
+                    parameterType.TypeArguments.Length == 1)
+                {
+                    tableType = parameterType.TypeArguments[0] as INamedTypeSymbol;
+                }
+                // Check if the parameter type is IList<Row<T>> where T is a table type
+                else if (parameter.Type is INamedTypeSymbol listType &&
+                         listType.IsGenericType &&
+                         (listType.Name == "IList" || listType.Name == "List") &&
+                         listType.TypeArguments.Length == 1 &&
+                         listType.TypeArguments[0] is INamedTypeSymbol rowType &&
+                         rowType.IsGenericType &&
+                         rowType.Name == "Row" &&
+                         rowType.TypeArguments.Length == 1)
+                {
+                    tableType = rowType.TypeArguments[0] as INamedTypeSymbol;
+                    isIList = true;
+                }
+
+                if (tableType != null)
+                {
+                    // Determine if it's read or write based on ref kind
+                    if (parameter.RefKind == RefKind.In)
+                    {
+                        // 'in' parameters are read-only
+                        systemModel.ReadDependencies.Add((tableType, isIList));
+                    }
+                    else if (parameter.RefKind == RefKind.Ref || parameter.RefKind == RefKind.Out)
+                    {
+                        // 'ref' and 'out' parameters are writable
+                        systemModel.WriteDependencies.Add(tableType);
+                    }
+                    else
+                    {
+                        // Default behavior - assume read-only for value parameters
+                        systemModel.ReadDependencies.Add((tableType, isIList));
+                    }
+                }
+            }
+        }
+
+        return systemModel;
     }
 
     private static void BuildGroups(DatabaseModel model)

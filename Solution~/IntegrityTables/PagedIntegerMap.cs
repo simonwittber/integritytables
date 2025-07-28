@@ -70,4 +70,44 @@ public class PagedIntegerMap : IIntegerMap
             }
         }
     }
+
+    public Enumerator GetEnumerator() => new Enumerator(this);
+
+    public struct Enumerator
+    {
+        private readonly PagedIntegerMap map;
+        private int pageIndex;
+        private int entryIndex;
+
+        public Enumerator(PagedIntegerMap map)
+        {
+            this.map = map;
+            Current = default;
+            pageIndex = 0;
+            entryIndex = -1;
+        }
+
+        public int Current { get; set; }
+
+        public bool MoveNext()
+        {
+            while (pageIndex < map._pages.Count)
+            {
+                var page = map._pages[pageIndex];
+                if (page != null)
+                {
+                    entryIndex++;
+                    if (entryIndex < PageSize)
+                    {
+                        Current = page[entryIndex];
+                        if (Current != -1) return true; // found a valid entry
+                    }
+                }
+                // Move to the next page
+                entryIndex = -1;
+                pageIndex++;
+            }
+            return false; // no more entries
+        }
+    }
 }
