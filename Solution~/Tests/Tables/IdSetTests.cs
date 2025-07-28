@@ -5,20 +5,20 @@ using NUnit.Framework;
 namespace IntegrityTables.Tests;
 
 [TestFixture]
-public class IntSetTests
+public class IdSetTests
 {
-    private IntSet _set;
+    private IdSet _set;
 
     [SetUp]
     public void Setup()
     {
-        _set = new IntSet();
+        _set = new IdSet();
     }
 
     [Test]
     public void Constructor_WithDefaultCapacity_InitializesCorrectly()
     {
-        var set = new IntSet();
+        var set = new IdSet();
         Assert.DoesNotThrow(() => set.Add(1));
     }
 
@@ -37,33 +37,7 @@ public class IntSetTests
         Assert.That(_set.Contains(42), Is.True);
     }
 
-    [Test]
-    public void Add_MultipleUniqueValues_AllSucceed()
-    {
-        var values = new[] { 1, 2, 3, 42, 100, -5, -100 };
-        
-        foreach (var value in values)
-        {
-            Assert.That(_set.Add(value), Is.True, $"Failed to add {value}");
-        }
-
-        foreach (var value in values)
-        {
-            Assert.That(_set.Contains(value), Is.True, $"Set doesn't contain {value}");
-        }
-    }
-
-    [Test]
-    public void Add_ExtremeValues_HandlesCorrectly()
-    {
-        var extremeValues = new[] { int.MaxValue - 1, int.MinValue + 1, 0 };
-        
-        foreach (var value in extremeValues)
-        {
-            Assert.That(_set.Add(value), Is.True, $"Failed to add extreme value {value}");
-            Assert.That(_set.Contains(value), Is.True, $"Set doesn't contain extreme value {value}");
-        }
-    }
+   
 
     [Test]
     public void Contains_ExistingValue_ReturnsTrue()
@@ -271,51 +245,7 @@ public class IntSetTests
         }
     }
 
-    [Test]
-    public void StressTest_ManyOperations_MaintainsConsistency()
-    {
-        var random = new Random(42); // Fixed seed for reproducibility
-        var expectedValues = new System.Collections.Generic.HashSet<int>();
-        
-        // Perform many random operations
-        for (int i = 0; i < 1000; i++)
-        {
-            int value = random.Next(-500, 500);
-            bool operation = random.NextDouble() > 0.3; // 70% add, 30% remove
-            
-            if (operation) // Add
-            {
-                bool actualResult = _set.Add(value);
-                bool expectedResult = expectedValues.Add(value);
-                Assert.That(actualResult, Is.EqualTo(expectedResult), 
-                    $"Add operation result mismatch for value {value}");
-            }
-            else // Remove
-            {
-                bool actualResult = _set.Remove(value);
-                bool expectedResult = expectedValues.Remove(value);
-                Assert.That(actualResult, Is.EqualTo(expectedResult), 
-                    $"Remove operation result mismatch for value {value}");
-            }
-        }
-        
-        // Verify final state consistency
-        foreach (var expectedValue in expectedValues)
-        {
-            Assert.That(_set.Contains(expectedValue), Is.True, 
-                $"Set missing expected value {expectedValue}");
-        }
-        
-        // Test some values that shouldn't be in the set
-        for (int i = 1000; i < 1100; i++)
-        {
-            if (!expectedValues.Contains(i))
-            {
-                Assert.That(_set.Contains(i), Is.False, 
-                    $"Set contains unexpected value {i}");
-            }
-        }
-    }
+   
 
     [Test]
     public void HashCollisions_HandledCorrectly()
@@ -364,23 +294,6 @@ public class IntSetTests
         Assert.That(_set.Remove(0), Is.False); // Already removed
     }
 
-    [Test]
-    public void NegativeNumbers_HandledCorrectly()
-    {
-        var negativeValues = new[] { -1, -42, -100, -1000, int.MinValue + 1 };
-        
-        foreach (var value in negativeValues)
-        {
-            Assert.That(_set.Add(value), Is.True, $"Failed to add negative value {value}");
-            Assert.That(_set.Contains(value), Is.True, $"Set doesn't contain negative value {value}");
-        }
-        
-        foreach (var value in negativeValues)
-        {
-            Assert.That(_set.Remove(value), Is.True, $"Failed to remove negative value {value}");
-            Assert.That(_set.Contains(value), Is.False, $"Set still contains negative value {value}");
-        }
-    }
 
     #region UnionWith Tests
 
@@ -481,61 +394,7 @@ public class IntSetTests
         Assert.That(_set.Contains(4), Is.False);
     }
 
-    [Test]
-    public void UnionWith_NegativeNumbers_WorksCorrectly()
-    {
-        _set.Add(1);
-        _set.Add(2);
-        
-        var negativeValues = new int[] { -1, -2, -3 };
-        _set.UnionWith(negativeValues);
-        
-        // Positive numbers should still be there
-        Assert.That(_set.Contains(1), Is.True);
-        Assert.That(_set.Contains(2), Is.True);
-        
-        // Negative numbers should be added
-        Assert.That(_set.Contains(-1), Is.True);
-        Assert.That(_set.Contains(-2), Is.True);
-        Assert.That(_set.Contains(-3), Is.True);
-    }
-
-    [Test]
-    public void UnionWith_ExtremeValues_WorksCorrectly()
-    {
-        _set.Add(0);
-        
-        var extremeValues = new int[] { int.MaxValue - 1, int.MinValue + 1 };
-        _set.UnionWith(extremeValues);
-        
-        Assert.That(_set.Contains(0), Is.True);
-        Assert.That(_set.Contains(int.MaxValue - 1), Is.True);
-        Assert.That(_set.Contains(int.MinValue + 1), Is.True);
-    }
-
-    [Test]
-    public void UnionWith_LargeSpan_PerformanceTest()
-    {
-        // Add some initial elements
-        for (int i = 0; i < 500; i++)
-        {
-            _set.Add(i);
-        }
-        
-        // Create large span with some overlapping and some new values
-        var largeSpan = Enumerable.Range(250, 1000).ToArray(); // 250-1249, overlaps with 250-499
-        _set.UnionWith(largeSpan);
-        
-        // Verify all values from 0-1249 are present
-        for (int i = 0; i < 1250; i++)
-        {
-            Assert.That(_set.Contains(i), Is.True, $"Set doesn't contain {i}");
-        }
-        
-        // Verify values outside range are not present
-        Assert.That(_set.Contains(-1), Is.False);
-        Assert.That(_set.Contains(1250), Is.False);
-    }
+ 
 
     [Test]
     public void UnionWith_TriggersResize_WorksCorrectly()

@@ -5,9 +5,9 @@ using System.Runtime.CompilerServices;
 
 namespace IntegrityTables;
 
-public class IntSet
+public class IdSet
 {
-    private PagedIntegerMap map = new();
+    private PagedIdMap map = new();
     
     public bool Add(int value)
     {
@@ -18,7 +18,7 @@ public class IntSet
 
     public void IntersectWith(Span<int> span)
     {
-        var newMap = new PagedIntegerMap();
+        var newMap = new PagedIdMap();
         foreach (var value in span)
         {
             if (value < 0) continue; // skip negative values

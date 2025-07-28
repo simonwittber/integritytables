@@ -8,7 +8,7 @@ namespace IntegrityTables;
 // IdMap is preferred for primary key to index mapping, as we know that the keys start from 0 and are dense.
 // PagedMap is designed for cases where the keys are sparse or large, and we want to minimize memory usage.
 
-public class PagedIntegerMap : IIntegerMap
+public class PagedIdMap : IIdMap
 {
     private const int PageBits = 10;          // 1024 entries per page
     private const int PageSize = 1 << PageBits;
@@ -75,11 +75,11 @@ public class PagedIntegerMap : IIntegerMap
 
     public struct Enumerator
     {
-        private readonly PagedIntegerMap map;
+        private readonly PagedIdMap map;
         private int pageIndex;
         private int entryIndex;
 
-        public Enumerator(PagedIntegerMap map)
+        public Enumerator(PagedIdMap map)
         {
             this.map = map;
             Current = default;

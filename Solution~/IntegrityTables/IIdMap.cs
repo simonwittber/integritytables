@@ -1,6 +1,6 @@
 namespace IntegrityTables;
 
-public interface IIntegerMap
+public interface IIdMap
 {
     void Remove(int id);
     int this[int id] { get; set; }

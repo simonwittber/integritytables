@@ -43,7 +43,7 @@ public class PagedMapBenchmarks
     [Benchmark()]
     public void PagedAddGet()
     {
-        var _paged = new PagedIntegerMap();
+        var _paged = new PagedIdMap();
         for (var i = 0; i < N; i++)
         {
             // we use a smaller set of keys, as PagedMap is designed to optimize it's memory usage

@@ -42,7 +42,7 @@ public class IntSetBenchmarks
     [Benchmark]
     public void IntSet_AddAndContains()
     {
-        var intSet = new IntSet();
+        var intSet = new IdSet();
         intSet.UnionWith(aKeys);
         
         // Contains phase
@@ -71,7 +71,7 @@ public class IntSetBenchmarks
     [Benchmark]
     public void IntSet_IntersectWith()
     {
-        var intSet = new IntSet();
+        var intSet = new IdSet();
         intSet.UnionWith(aKeys);
         
         // IntersectWith phase
