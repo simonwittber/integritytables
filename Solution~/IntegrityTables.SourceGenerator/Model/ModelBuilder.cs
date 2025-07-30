@@ -98,7 +98,7 @@ public static partial class ModelBuilder
         {
             foreach (var parameter in executeMethod.Parameters)
             {
-                bool isIList = false;
+                var isList = false;
                 INamedTypeSymbol tableType = null;
 
                 // Check if the parameter type is Row<T> where T is a table type
@@ -112,35 +112,36 @@ public static partial class ModelBuilder
                 // Check if the parameter type is IList<Row<T>> where T is a table type
                 else if (parameter.Type is INamedTypeSymbol listType &&
                          listType.IsGenericType &&
-                         (listType.Name == "IList" || listType.Name == "List") &&
+                         (listType.Name == "QueryByIdEnumerator") &&
                          listType.TypeArguments.Length == 1 &&
-                         listType.TypeArguments[0] is INamedTypeSymbol rowType &&
-                         rowType.IsGenericType &&
-                         rowType.Name == "Row" &&
-                         rowType.TypeArguments.Length == 1)
+                         listType.TypeArguments[0] is INamedTypeSymbol rowType)
                 {
-                    tableType = rowType.TypeArguments[0] as INamedTypeSymbol;
-                    isIList = true;
+                    tableType = rowType;
+                    isList = true;
                 }
 
                 if (tableType != null)
                 {
+                    var tableModel = model.TableMap[tableType];
+
                     // Determine if it's read or write based on ref kind
                     if (parameter.RefKind == RefKind.In)
                     {
                         // 'in' parameters are read-only
-                        systemModel.ReadDependencies.Add((tableType, isIList));
+                        systemModel.ReadDependencies.Add((tableModel, isList));
                     }
                     else if (parameter.RefKind == RefKind.Ref || parameter.RefKind == RefKind.Out)
                     {
                         // 'ref' and 'out' parameters are writable
-                        systemModel.WriteDependencies.Add(tableType);
+                        systemModel.WriteDependencies.Add(tableModel);
                     }
                     else
                     {
                         // Default behavior - assume read-only for value parameters
-                        systemModel.ReadDependencies.Add((tableType, isIList));
+                        systemModel.ReadDependencies.Add((tableModel, isList));
                     }
+
+                    systemModel.Parameters.Add((parameter.Name, tableModel, isList, parameter.RefKind == RefKind.Ref || parameter.RefKind == RefKind.Out));
                 }
             }
         }

@@ -16,13 +16,6 @@ public class IdSetTests
     }
 
     [Test]
-    public void Constructor_WithDefaultCapacity_InitializesCorrectly()
-    {
-        var set = new IdSet();
-        Assert.DoesNotThrow(() => set.Add(1));
-    }
-
-    [Test]
     public void Add_NewValue_ReturnsTrue()
     {
         Assert.That(_set.Add(42), Is.True);
@@ -36,8 +29,6 @@ public class IdSetTests
         Assert.That(_set.Add(42), Is.False);
         Assert.That(_set.Contains(42), Is.True);
     }
-
-   
 
     [Test]
     public void Contains_ExistingValue_ReturnsTrue()

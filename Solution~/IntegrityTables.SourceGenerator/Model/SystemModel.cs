@@ -37,6 +37,7 @@ public class SystemModel
         }
     }
 
-    public List<(INamedTypeSymbol Type, bool isList)> ReadDependencies = new();
-    public List<INamedTypeSymbol> WriteDependencies = new();
+    public List<(string name, TableModel tableModel, bool isList, bool isWrite)> Parameters = new();
+    public List<(TableModel tableModel, bool isList)> ReadDependencies = new();
+    public List<TableModel> WriteDependencies = new();
 }

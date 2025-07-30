@@ -47,17 +47,14 @@ public partial struct Player : IComponent
 public partial class VelocitySystem : ISystem<GameDatabase>
 {
     public GameDatabase database { get; set; }
-
-    HashSet<int> entities = new();
-    
-   
     
     public void Execute(ref Row<Transform> transform, in Row<Velocity> velocity, in QueryByIdEnumerator<StatusEffect> statusEffectQuery)
     {
-        // XX
+        transform.data.x += velocity.data.x;
+        transform.data.y += velocity.data.y;
+        transform.data.z += velocity.data.z;
     }
 }
-
 
 [TestFixture]
 public class ECSTests
@@ -70,5 +67,21 @@ public class ECSTests
         db = new GameDatabase();
     }
 
+    [Test]
+    public void TestBasicSystem()
+    {
+        var entityId = db.EntityTable.Add(new Entity()).id;
+        var transformId = db.TransformTable.Add(new Transform() { entityId = entityId }).id;
+        var velocityId = db.VelocityTable.Add(new Velocity() { entityId = entityId, x = 1.0f, y = 0.0f, z = 0.0f });
+        var s = new VelocitySystem();
+        s.database = db;
+        using var scope = db.CreateContext();
+        s.Execute();
+        var transform = db.TransformTable.Get(transformId);
+        Assert.That(transform.x(), Is.EqualTo(1.0f));
+        Assert.That(transform.y(), Is.EqualTo(0.0f));
+        Assert.That(transform.z(), Is.EqualTo(0.0f));
+        
+    }
     
 }

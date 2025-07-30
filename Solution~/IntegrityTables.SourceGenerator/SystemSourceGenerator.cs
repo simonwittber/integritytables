@@ -32,8 +32,10 @@ public class SystemSourceGenerator
             sb.AppendLine("{");
         }
 
-        sb.AppendLine($"    public partial class {system.TypeName}");
-        sb.AppendLine("    {");
+        sb.AppendLine($@"    // {DatabaseSourceGenerator.GenerationStamp()}
+    public partial class {system.TypeName}
+    {{
+        private IdSet entities = new();");
         
         // Generate the parameterless Execute method
         GenerateExecuteMethod(sb, model, system);
@@ -51,144 +53,53 @@ public class SystemSourceGenerator
 
     private static void GenerateExecuteMethod(StringBuilder sb, DatabaseModel model, SystemModel system)
     {
-        // Find the user-defined Execute method with parameters
-        var executeMethod = system.SystemSymbol.GetMembers("Execute")
-            .OfType<IMethodSymbol>()
-            .FirstOrDefault(m => m.Parameters.Length > 0);
-
-        if (executeMethod == null)
+        sb.AppendLine(@"        public void Execute()
         {
-            sb.AppendLine("        // No parameterized Execute method found to generate wrapper for");
-            return;
-        }
+            entities.Clear();");
+        
 
-        sb.AppendLine("        public void Execute()");
-        sb.AppendLine("        {");
-
-        // Analyze the parameters to determine the iteration strategy
-        var writableParams = new List<(IParameterSymbol param, INamedTypeSymbol tableType)>();
-        var readableParams = new List<(IParameterSymbol param, INamedTypeSymbol tableType, bool isCollection)>();
-
-        foreach (var param in executeMethod.Parameters)
+        // Find the primary table to iterate over (first writable parameter, or first readable if no writable)
+        var firstParam = system.Parameters[0];
+        sb.AppendLine($"            entities.UnionWith(database.{firstParam.tableModel.FacadeName}.GetEntityIdSpan());");
+        foreach (var param in system.Parameters.Skip(1))
         {
-            var (tableType, isCollection) = ExtractTableTypeFromParameter(param);
-            if (tableType == null) continue;
-
-            if (param.RefKind == RefKind.Ref || param.RefKind == RefKind.Out)
+            if (!param.isList)
             {
-                writableParams.Add((param, tableType));
+                sb.AppendLine($"            entities.IntersectWith(database.{param.tableModel.FacadeName}.GetEntityIdSpan());");
+            }
+        }
+        
+        // Generate the method call
+        sb.AppendLine(@$"            foreach(var entityId in entities) {{");
+        
+        var args = new List<string>();
+                
+        foreach (var param in system.Parameters)
+        {
+            if(param.isList)
+            {
+                sb.AppendLine($"                var {param.name} = database.{param.tableModel.FacadeName}.SelectByEntityId(entityId);");
+                args.Add($"{param.name}");
             }
             else
             {
-                readableParams.Add((param, tableType, isCollection));
-            }
+                sb.AppendLine($"                var {param.name} = database.{param.tableModel.FacadeName}.GetByEntityId(entityId);");
+                args.Add($"{(param.isWrite?"ref":"in")} {param.name}");
+            }           
         }
-
-        // Find the primary table to iterate over (first writable parameter, or first readable if no writable)
-        var primaryTable = writableParams.FirstOrDefault().tableType ?? readableParams.FirstOrDefault().tableType;
-        
-        if (primaryTable != null)
+        sb.AppendLine(@$"                Execute({string.Join(", ", args)});");
+        foreach (var param in system.Parameters)
         {
-            var primaryTableModel = model.Tables.FirstOrDefault(t => SymbolEqualityComparer.Default.Equals(t.TableSymbol, primaryTable));
-            if (primaryTableModel != null)
+            if(param.isWrite)
             {
-                sb.AppendLine($"            foreach (var id in database.{primaryTableModel.FacadeName})");
-                sb.AppendLine("            {");
-                sb.AppendLine($"                var {GetVariableName(primaryTable)} = database.{primaryTableModel.FacadeName}.Get(id);");
-
-                // Generate conditional checks and variable declarations for other parameters
-                foreach (var (param, tableType, isCollection) in readableParams.Skip(writableParams.Any() ? 0 : 1))
-                {
-                    var tableModel = model.Tables.FirstOrDefault(t => SymbolEqualityComparer.Default.Equals(t.TableSymbol, tableType));
-                    if (tableModel == null) continue;
-
-                    var varName = GetVariableName(tableType);
-
-                    if (isCollection)
-                    {
-                        sb.AppendLine($"                var {varName}Query = database.{tableModel.FacadeName}.SelectByEntityId({GetVariableName(primaryTable)}.data.entityId);");
-                    }
-                    else
-                    {
-                        sb.AppendLine($"                if(database.{tableModel.FacadeName}.TryGetByEntityId({GetVariableName(primaryTable)}.data.entityId, out var {varName}))");
-                        sb.AppendLine("                {");
-                    }
-                }
-
-                // Generate the method call
-                sb.Append("                Execute(");
-                var args = new List<string>();
-                
-                foreach (var param in executeMethod.Parameters)
-                {
-                    var (tableType, isCollection) = ExtractTableTypeFromParameter(param);
-                    if (tableType == null) continue;
-
-                    var varName = GetVariableName(tableType);
-                    var refKind = param.RefKind == RefKind.Ref ? "ref " : 
-                                 param.RefKind == RefKind.In ? "in " : "";
-                    
-                    if (isCollection)
-                    {
-                        args.Add($"{refKind}{varName}Query");
-                    }
-                    else
-                    {
-                        args.Add($"{refKind}{varName}");
-                    }
-                }
-                
-                sb.AppendLine(string.Join(", ", args) + ");");
-
-                // Close conditional blocks
-                int conditionalBlocks = readableParams.Count(p => !p.isCollection && !SymbolEqualityComparer.Default.Equals(p.tableType, primaryTable));
-                for (int i = 0; i < conditionalBlocks; i++)
-                {
-                    sb.AppendLine("                }");
-                }
-
-                sb.AppendLine("            }");
+                sb.AppendLine($"                database.{param.tableModel.FacadeName}.Update(ref {param.name});");
             }
+                   
         }
+        sb.AppendLine(@$"            }}");
+        sb.AppendLine(@$"        }}");
 
-        sb.AppendLine("        }");
-    }
-
-    private static (INamedTypeSymbol tableType, bool isCollection) ExtractTableTypeFromParameter(IParameterSymbol parameter)
-    {
-        // Check if parameter is Row<T>
-        if (parameter.Type is INamedTypeSymbol paramType && 
-            paramType.IsGenericType && 
-            paramType.Name == "Row" &&
-            paramType.TypeArguments.Length == 1)
-        {
-            return (paramType.TypeArguments[0] as INamedTypeSymbol, false);
-        }
-
-        // Check if parameter is a query enumerator type like QueryByIdEnumerator<T>
-        if (parameter.Type is INamedTypeSymbol queryType && 
-            queryType.IsGenericType && 
-            (queryType.Name.Contains("Query") || queryType.Name.Contains("Enumerator")) &&
-            queryType.TypeArguments.Length == 1)
-        {
-            return (queryType.TypeArguments[0] as INamedTypeSymbol, true);
-        }
-
-        return (null, false);
-    }
-
-    private static string GetVariableName(INamedTypeSymbol tableType)
-    {
-        var name = tableType.Name.ToLowerInvariant();
-        return name;
-    }
-
-    private static string FindEntityIdField(TableModel primaryTable, TableModel targetTable)
-    {
-        // Look for a field that references Entity or has "entityId" pattern
-        var entityField = targetTable.Fields?.FirstOrDefault(f => 
-            f.Name.ToLower().Contains("entityid") || f.Name.ToLower() == "entity");
+                
         
-        return entityField?.CapitalizedName ?? "EntityId";
     }
 }

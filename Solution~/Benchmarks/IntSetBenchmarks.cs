@@ -7,13 +7,17 @@ namespace IntegrityTables.Benchmarks;
 [MarkdownExporterAttribute.GitHub]
 [SimpleJob(RuntimeMoniker.Net90, launchCount: 1, warmupCount: 3, iterationCount: 100)]
 [MemoryDiagnoser(false)]
-public class IntSetBenchmarks
+public class IdSetBenchmarks
 {
-    public const int N = 100;
+    [Params(10, 100, 1000, 10000)]
+    public int N = 1000;
 
     private int[] aKeys, bKeys;
     private int[] lookupKeys;
 
+    private IdSet precomputedIdSet;
+    HashSet<int> precomputedHashSet;
+    
     [IterationSetup]
     public void Setup()
     {
@@ -37,44 +41,69 @@ public class IntSetBenchmarks
             (aKeys[i], aKeys[j]) = (aKeys[j], aKeys[i]);
             (bKeys[i], bKeys[j]) = (bKeys[j], bKeys[i]);
         }
+
+        precomputedIdSet = new IdSet(aKeys);
+        precomputedHashSet = new HashSet<int>(aKeys);
     }
 
     [Benchmark]
-    public void IntSet_AddAndContains()
+    public void IdSet_Iterate()
+    {
+        var x = 0;
+        foreach (var i in precomputedIdSet)
+            x += i;
+    }
+    
+    [Benchmark]
+    public void HashSet_Iterate()
+    {
+        var x = 0;
+        foreach (var i in precomputedHashSet)
+            x += i;
+    }
+    
+    [Benchmark]
+    public void IdSet_Add()
     {
         var intSet = new IdSet();
-        intSet.UnionWith(aKeys);
-        
-        // Contains phase
-        var found = 0;
         for (var i = 0; i < N; i++)
         {
-            if (intSet.Contains(lookupKeys[i]))
-                found++;
+            intSet.Add(lookupKeys[i]);
         }
     }
 
     [Benchmark]
-    public void HashSet_AddAndContains()
+    public void HashSet_Add()
     {
-        var hashSet = new HashSet<int>(aKeys);
-        
-        // Contains phase
-        var found = 0;
+        var hashSet = new HashSet<int>();
         for (var i = 0; i < N; i++)
         {
-            if (hashSet.Contains(lookupKeys[i]))
-                found++;
+            hashSet.Add(lookupKeys[i]);
         }
     }
     
     [Benchmark]
-    public void IntSet_IntersectWith()
+    public void IdSet_Contains()
     {
-        var intSet = new IdSet();
-        intSet.UnionWith(aKeys);
-        
-        // IntersectWith phase
+        for (var i = 0; i < N; i++)
+        {
+            precomputedIdSet.Contains(lookupKeys[i]);
+        }
+    }
+
+    [Benchmark]
+    public void HashSet_Contains()
+    {
+        for (var i = 0; i < N; i++)
+        {
+            precomputedHashSet.Contains(lookupKeys[i]);
+        }
+    }
+    
+    [Benchmark]
+    public void IdSet_IntersectWith()
+    {
+        var intSet = new IdSet(aKeys);
         intSet.IntersectWith(bKeys);
     }
     
@@ -82,8 +111,44 @@ public class IntSetBenchmarks
     public void HashSet_IntersectWith()
     {
         var hashSet = new HashSet<int>(aKeys);
-        
-        // IntersectWith phase
         hashSet.IntersectWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void IdSet_UnionWith()
+    {
+        var intSet = new IdSet(aKeys);
+        intSet.UnionWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void HashSet_UnionWith()
+    {
+        var hashSet = new HashSet<int>(aKeys);
+        hashSet.UnionWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void IdSet_ExceptWith()
+    {
+        precomputedIdSet.ExceptWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void HashSet_ExceptWith()
+    {
+        precomputedHashSet.ExceptWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void IdSet_SymmetricExceptWith()
+    {
+        precomputedIdSet.SymmetricExceptWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void HashSet_SymmetricExceptWith()
+    {
+        precomputedHashSet.SymmetricExceptWith(bKeys);
     }
 }
