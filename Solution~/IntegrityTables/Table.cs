@@ -1,19 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace IntegrityTables;
 
-public partial class Table<T>  where T : struct, IEquatable<T>
+public partial class Table<T> where T : struct, IEquatable<T>
 {
     internal IRowContainer<T> _rowContainer;
     internal TableKeyGenerator _keyGenerator;
     private readonly int _capacity;
-    internal object _sync = new object();
-    
+    private ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
+
 
     private void RaiseException(Exception exception)
     {
-        if(_isInChangeSet) _changeSetLog.Exception = exception;
+        if (_isInChangeSet) _changeSetLog.Exception = exception;
         throw exception;
     }
 
@@ -28,7 +29,7 @@ public partial class Table<T>  where T : struct, IEquatable<T>
     internal void ResetKeyGenerator()
     {
         var maxKey = 0;
-        lock (_sync)
+        using (_lock.WriteScope())
         {
             for (var i = 0; i < _rowContainer.Count; i++)
             {
@@ -41,5 +42,4 @@ public partial class Table<T>  where T : struct, IEquatable<T>
             _keyGenerator.Reset(maxKey);
         }
     }
-    
 }

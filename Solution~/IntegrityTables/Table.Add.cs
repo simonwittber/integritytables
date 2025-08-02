@@ -10,7 +10,7 @@ public partial class Table<T> where T : struct, IEquatable<T>
         if (Metadata != null) return new RowObjectAdapter(Metadata, row);
         throw new InvalidOperationException("Metadata is not set. Cannot create empty row.");
     }
-    
+
     public void Add(RowObjectAdapter adapter)
     {
         if (adapter.row is Row<T> typedRow)
@@ -19,6 +19,7 @@ public partial class Table<T> where T : struct, IEquatable<T>
             adapter.row = typedRow;
             return;
         }
+
         throw new InvalidOperationException($"RowObjectAdapter row type mismatch. Expected {typeof(Row<T>)} but got {adapter.row.GetType()}");
     }
 
@@ -27,7 +28,7 @@ public partial class Table<T> where T : struct, IEquatable<T>
         if (adapter.row is Row<T> typedRow)
         {
             var result = TryAdd(ref typedRow);
-            if(result)
+            if (result)
                 adapter.row = typedRow;
             return result;
         }
@@ -35,7 +36,7 @@ public partial class Table<T> where T : struct, IEquatable<T>
         throw new InvalidOperationException($"RowObjectAdapter row type mismatch. Expected {typeof(Row<T>)} but got {adapter.row.GetType()}");
     }
 
-    
+
     public Row<T> Add(T data)
     {
         var row = new Row<T>(0, data);
@@ -49,11 +50,11 @@ public partial class Table<T> where T : struct, IEquatable<T>
             throw new InvalidOperationException($"Row with id {row.id} already exists.");
     }
 
-    public bool TryAdd(ref Row<T> row, bool enableTriggers=true, bool enableConstraints=true)
+    public bool TryAdd(ref Row<T> row, bool enableTriggers = true, bool enableConstraints = true)
     {
-        lock(_sync)
+        using(_lock.WriteScope())
         {
-            if(enableTriggers) ValidateForAdd?.Invoke(row.data);
+            if (enableTriggers) ValidateForAdd?.Invoke(row.data);
             CheckChangeSetState();
             if (row.id == 0)
             {
@@ -81,11 +82,12 @@ public partial class Table<T> where T : struct, IEquatable<T>
             }
             finally
             {
-                if(entered)
+                if (entered)
                     TriggerGuard.Exit(GetType());
             }
 
             return true;
         }
+        
     }
 }

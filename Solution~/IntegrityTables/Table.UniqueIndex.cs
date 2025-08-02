@@ -9,7 +9,7 @@ public partial class Table<T>
 
     public void AddUniqueIndex<TU>(string name, UniqueIndex<T, TU>.GetKeyDelegate getKeyFunc) where TU : struct
     {
-        lock (_sync)
+        using(_lock.WriteScope())
         {
             var index = new UniqueIndex<T, TU>(this, name, getKeyFunc, _capacity);
             Array.Resize(ref _indexes, _indexes.Length + 1);
@@ -21,6 +21,7 @@ public partial class Table<T>
 
             _indexMap[name] = index;
         }
+        
     }
 
     internal IUniqueIndex<T>[] _indexes = [];
