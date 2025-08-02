@@ -15,7 +15,7 @@ internal class RowContainer<T> : IRowContainer<T> where T : struct, IEquatable<T
 
     public event Action<int, TableOperation>? OnRowModified;
 
-    private IIntegerMap _idToIndex = new IdMap();
+    private IIdMap _idToIndex = new IdMap();
 
     private void ResizeIfNeeded()
     {

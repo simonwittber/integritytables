@@ -67,6 +67,7 @@ public partial struct Room
 }
 
 [MarkdownExporterAttribute.GitHub]
+
 [SimpleJob(RuntimeMoniker.Net90, launchCount: 1, warmupCount: 3, iterationCount: 100)]
 [MemoryDiagnoser]
 public class MyBenchmarks

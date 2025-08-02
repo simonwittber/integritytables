@@ -8,7 +8,6 @@
     </PropertyGroup>
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.1</TargetFramework>
         <PackageId>IntegrityTables.Core</PackageId>
         <Version>0.0.1</Version>
         <Authors>Simon Wittber</Authors>

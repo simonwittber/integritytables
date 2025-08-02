@@ -211,14 +211,22 @@ using IntegrityTables;
 
                 sb.AppendLine($@"
             // {DatabaseSourceGenerator.GenerationStamp()}
-            public static ObservableList<{field.QualifiedTypeName}> SelectBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id) 
+            public static QueryByIdEnumerator<{field.TableModel.QualifiedTypeName}> SelectBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id) 
+            {{
+                var db = Context<{table.DatabaseModel.DatabaseSymbol.Name}>.Current;
+                var ids = db.{field.TableModel.FacadeName}Index.SelectBy{field.CapitalizedName}(id);
+                return new QueryByIdEnumerator<{field.TableModel.QualifiedTypeName}>(table, ids);
+            }}
+
+            // {DatabaseSourceGenerator.GenerationStamp()}
+            public static ObservableList<{field.QualifiedTypeName}> ObserveBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id) 
             {{
                 var db = Context<{table.DatabaseModel.DatabaseSymbol.Name}>.Current;
                 return db.{field.TableModel.FacadeName}Index.SelectBy{field.CapitalizedName}(id);
             }}
 
             // {DatabaseSourceGenerator.GenerationStamp()}
-            public static bool TrySelectBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id, out ObservableList<{field.QualifiedTypeName}> values) 
+            public static bool TryObserveBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} id, out ObservableList<{field.QualifiedTypeName}> values) 
             {{
                 var db = Context<{table.DatabaseModel.DatabaseSymbol.Name}>.Current;
                 return db.{field.TableModel.FacadeName}Index.TrySelectBy{field.CapitalizedName}(id, out values);
@@ -239,7 +247,7 @@ using IntegrityTables;
             {
                 // if field is Unique, this is a one to one relationship, otherwise it's a one to many relationship
                 if (field.IsUnique)
-                    sb.AppendLine($"        private IIntegerMap map_{field.Name} = new PagedIntegerMap(); // {field.Name} is a 1 to 1 relationship, so we use a map to provide the GetBy methods, and the list below for Observability");
+                    sb.AppendLine($"        private IIdMap map_{field.Name} = new PagedIdMap(); // {field.Name} is a 1 to 1 relationship, so we use a map to provide the GetBy methods, and the list below for Observability");
                 sb.AppendLine($"        private Dictionary<int, ObservableList<int>> {field.Name} = new();");
             }
         }

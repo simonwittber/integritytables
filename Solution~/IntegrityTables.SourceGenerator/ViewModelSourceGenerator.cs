@@ -156,7 +156,7 @@ public partial class {tableModel.TypeName}ViewModel : IViewModel, IDisposable
             var viewCollection = $"{i.CollectionName}";
             var idList = $"{i.TableModel.TypeName}_{i.CapitalizedName}Ids";
             sb.AppendLine($"        // need to watch {manyToMany.Fields[0].Name} and {manyToMany.Fields[1].Name} for changes");
-            sb.AppendLine($"        {idList} = db.{i.TableModel.FacadeName}.SelectBy{i.CapitalizedName}(id);");
+            sb.AppendLine($"        {idList} = db.{i.TableModel.FacadeName}.ObserveBy{i.CapitalizedName}(id);");
             sb.AppendLine(@$"        {i.TableModel.TypeName}_{i.CapitalizedName}ItemAdded = (index, id) => {{
             // get {i.TableModel.TypeName} row
             var junctionRow = db.{i.TableModel.FacadeName}.Get(id);
@@ -194,7 +194,7 @@ public partial class {tableModel.TypeName}ViewModel : IViewModel, IDisposable
             if (string.IsNullOrEmpty(i.CollectionName)) continue;
             if (i.TableModel.IsManyToMany) continue;
 
-            sb.AppendLine($@"        {idCollection} = db.{i.TableModel.FacadeName}.SelectBy{i.CapitalizedName}(id);
+            sb.AppendLine($@"        {idCollection} = db.{i.TableModel.FacadeName}.ObserveBy{i.CapitalizedName}(id);
         {i.CollectionName}ItemAdded = (index, id) => {viewCollection}.Add(manager.{i.TableModel.TypeName}ViewModels.Get(id)); 
         {idCollection}.ItemAdded += {i.CollectionName}ItemAdded;
         {i.CollectionName}ItemRemoved = (index, id) => {viewCollection}.RemoveAt(index);

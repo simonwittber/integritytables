@@ -28,7 +28,7 @@ public class PagedMapBenchmarks
         {
             values[i] = i + 1;
             keys[i] = i;
-            smallKeys[i] = i % (N / 10000); // reduce the key space to match the use case of PagedMap
+            smallKeys[i] = rng.Next(0, N); // reduce the key space to match the use case of PagedMap
         }
         // shuffle  keys
         for (var i = 0; i < N; i++)
@@ -43,7 +43,7 @@ public class PagedMapBenchmarks
     [Benchmark()]
     public void PagedAddGet()
     {
-        var _paged = new PagedIntegerMap();
+        var _paged = new PagedIdMap();
         for (var i = 0; i < N; i++)
         {
             // we use a smaller set of keys, as PagedMap is designed to optimize it's memory usage
@@ -66,7 +66,18 @@ public class PagedMapBenchmarks
             values[i] = _idMap[key];
         }
     }
-
+    
+    [Benchmark()]
+    public void IntMapAddGet()
+    {
+        var _idMap = new IntMap<int>();
+        for (var i = 0; i < N; i++)
+        {
+            var key = smallKeys[i];
+            _idMap[key] = values[i];
+            values[i] = _idMap[key];
+        }
+    }
     
     [Benchmark()]
     public void DictAddGetVsIdMap()
@@ -92,28 +103,8 @@ public class PagedMapBenchmarks
         }
     }
     
-    [Benchmark()]
-    public void PreAllocatedDictAddGetVsPagedMap()
-    {
-        var _dict = new Dictionary<int, int>(N/10000);
-        for (var i = 0; i < N; i++)
-        {
-            var key = smallKeys[i];
-            _dict[key] = values[i];
-            values[i] = _dict[key];
-        }
-    }
     
-    [Benchmark()]
-    public void PreAllocatedDictAddGetVsIdMap()
-    {
-        var _dict = new Dictionary<int, int>(N);
-        for (var i = 0; i < N; i++)
-        {
-            var key = keys[i];
-            _dict[key] = values[i];
-            values[i] = _dict[key];
-        }
-    }
+    
+   
     
 }

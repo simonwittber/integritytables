@@ -19,9 +19,10 @@ public partial class DatabaseSourceGenerator : IIncrementalGenerator
     private const string AttributeName = "GenerateDatabaseAttribute";
     private const string TableAttributeName = "GenerateTableAttribute";
     private const string ServiceAttributeName = "GenerateServiceAttribute";
+    private const string SystemAttributeName = "GenerateSystemAttribute";
 
 
-    private void GenerateDatabaseCode(SourceProductionContext context, ISymbol databaseClass, ImmutableArray<INamedTypeSymbol> _tablestructs, ImmutableArray<INamedTypeSymbol> serviceClasses)
+    private void GenerateDatabaseCode(SourceProductionContext context, ISymbol databaseClass, ImmutableArray<INamedTypeSymbol> _tablestructs, ImmutableArray<INamedTypeSymbol> serviceClasses, ImmutableArray<INamedTypeSymbol> systemClasses)
     {
         var uniqueTableStructs = _tablestructs
             .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
@@ -31,8 +32,12 @@ public partial class DatabaseSourceGenerator : IIncrementalGenerator
             .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
             .ToImmutableArray();
 
+        var uniqueSystemClasses = systemClasses
+            .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
+            .ToImmutableArray();
 
-        var model = ModelBuilder.Build(context, (INamedTypeSymbol) databaseClass, uniqueTableStructs, uniqueServiceClasses);
+
+        var model = ModelBuilder.Build(context, (INamedTypeSymbol) databaseClass, uniqueTableStructs, uniqueServiceClasses, uniqueSystemClasses);
         // DbmlBuilder.Build(context, model);
         // MermaidBuilder.Build(context, model);
         TableSourceGenerator.GenerateCode(context, model);
@@ -41,6 +46,7 @@ public partial class DatabaseSourceGenerator : IIncrementalGenerator
         ServiceSourceGenerator.GenerateCode(context, model);
         // PersistenceSourceGenerator.GenerateCode(context, model);
         ViewModelSourceGenerator.GenerateCode(context, model);
+        SystemSourceGenerator.GenerateCode(context, model);
         // EntityExtensionsGenerator.GenerateCode(context, model);
         if (model.GenerateForUnity)
         {
@@ -578,6 +584,14 @@ using IntegrityTables;
             .Select((t, _) => (INamedTypeSymbol) t.symbol)
             .Collect();
 
+        var systemClassesProvider = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                (s, _) => s is ClassDeclarationSyntax,
+                (ctx, _) => GetClassWithSystemAttribute(ctx))
+            .Where(t => t.hasSystemAttribute)
+            .Select((t, _) => (INamedTypeSymbol) t.symbol)
+            .Collect();
+
         // Get all classes with [GenerateDatabase] attribute
         var databaseClassesProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
@@ -588,11 +602,11 @@ using IntegrityTables;
 
         //     
         // Generate the source code
-        var allInputs = databaseClassesProvider.Combine(tableStructsProvider).Combine(serviceClassesProvider);
+        var allInputs = databaseClassesProvider.Combine(tableStructsProvider).Combine(serviceClassesProvider).Combine(systemClassesProvider);
         context.RegisterSourceOutput(allInputs, (ctx, source) =>
         {
-            var ((dbClass, tableStructs), services) = source;
-            GenerateDatabaseCode(ctx, dbClass, tableStructs, services);
+            var (((dbClass, tableStructs), services), systems) = source;
+            GenerateDatabaseCode(ctx, dbClass, tableStructs, services, systems);
         });
     }
 
@@ -627,6 +641,22 @@ using IntegrityTables;
 
         foreach (var attribute in symbol.GetAttributes())
             if (attribute.AttributeClass?.ToDisplayString() == $"{Namespace}.{ServiceAttributeName}")
+                return (symbol, true);
+
+        return (symbol, false);
+    }
+
+    private static (ISymbol symbol, bool hasSystemAttribute) GetClassWithSystemAttribute(GeneratorSyntaxContext context)
+    {
+        var declaration = (ClassDeclarationSyntax) context.Node;
+        var semanticModel = context.SemanticModel;
+        var symbol = semanticModel.GetDeclaredSymbol(declaration);
+
+        if (symbol == null)
+            return (null, false);
+
+        foreach (var attribute in symbol.GetAttributes())
+            if (attribute.AttributeClass?.ToDisplayString() == $"{Namespace}.{SystemAttributeName}")
                 return (symbol, true);
 
         return (symbol, false);

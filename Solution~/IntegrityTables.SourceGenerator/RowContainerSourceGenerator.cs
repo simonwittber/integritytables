@@ -431,6 +431,14 @@ using IntegrityTables;
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
+            sb.AppendLine($@"
+            public static Span<{field.QualifiedTypeName}> Get{field.CapitalizedName}Span(this Table<{table.TypeName}> table) 
+            {{
+                var rc = ({table.TypeName}RowContainer)table.RowContainer;
+                return rc._{field.Name}.AsSpan(0, rc.Count);
+            }}
+");
+            
             if (field.IsHotField && !field.IsReference)
             {
                 sb.AppendLine($@"

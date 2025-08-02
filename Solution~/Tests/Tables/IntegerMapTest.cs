@@ -16,7 +16,7 @@ public class IntegerMapTest
     [Test]
     public void TestIdMap()
     {
-        IIntegerMap idMap = new IdMap();
+        IIdMap idMap = new IdMap();
         for (int i = 0; i < keys.Length; i++)
         {
             idMap[keys[i]] = values[i];
@@ -44,7 +44,7 @@ public class IntegerMapTest
     [Test]
     public void TestPagedMap()
     {
-        IIntegerMap idMap = new PagedIntegerMap();
+        IIdMap idMap = new PagedIdMap();
         for (int i = 0; i < keys.Length; i++)
         {
             idMap[keys[i]] = values[i];

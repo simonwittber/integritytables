@@ -31,6 +31,8 @@ public class DatabaseModel
 
     public readonly List<ServiceModel> ServiceModels = new();
 
+    public readonly List<SystemModel> SystemModels = new();
+
     public string TypeName
     {
         get
