@@ -197,7 +197,6 @@ public class IdSetBenchmarks
     public void IntSet_SymmetricExceptWith()
     {
         intSet.SymmetricExceptWith(bKeys);
-        intSet.SymmetricExceptWith(bKeys);
     }
     
     [Benchmark]
