@@ -35,7 +35,7 @@ public class SystemSourceGenerator
         sb.AppendLine($@"    // {DatabaseSourceGenerator.GenerationStamp()}
     public partial class {system.TypeName}
     {{
-        private IdSet entities = new();");
+        private IntSet entities = new();");
         
         // Generate the parameterless Execute method
         GenerateExecuteMethod(sb, model, system);
