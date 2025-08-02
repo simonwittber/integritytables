@@ -9,7 +9,7 @@ public partial class Table<T> where T : struct, IEquatable<T>
     /// </summary>
     public void Sort(Comparison<Row<T>> comparison)
     {
-        lock (_sync)
+        using(_lock.WriteScope())
         {
             // snapshot
             var rows = ToArray();
@@ -29,6 +29,7 @@ public partial class Table<T> where T : struct, IEquatable<T>
                     idx.Add(in row);
             }
         }
+        
     }
 
     public void SortBy<TKey1, TKey2>(
@@ -47,7 +48,7 @@ public partial class Table<T> where T : struct, IEquatable<T>
             return desc2 ? -cmp2 : cmp2;
         });
     }
-    
+
     public void SortBy<TKey1, TKey2, TKey3>(
         Func<Row<T>, TKey1> key1, bool desc1,
         Func<Row<T>, TKey2> key2, bool desc2,
@@ -64,7 +65,7 @@ public partial class Table<T> where T : struct, IEquatable<T>
 
             var cmp2 = key2(a).CompareTo(key2(b));
             if (desc2) cmp2 = -cmp2;
-            
+
             if (cmp2 != 0) return cmp2;
             var cmp3 = key3(a).CompareTo(key3(b));
             return desc3 ? -cmp3 : cmp3;

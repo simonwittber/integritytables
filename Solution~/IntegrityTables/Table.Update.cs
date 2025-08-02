@@ -41,9 +41,9 @@ public partial class Table<T> where T : struct, IEquatable<T>
     public void Update(RowActionFunc<T> fn, RowConditionFunc<T> where = null)
     {
         // TODO: should this be inside a change set, or should we leave that to the caller?
-        lock(_sync)
+        using(_lock.WriteScope())
         {
-            for(var i=Count-1; i>=0; i--)
+            for (var i = Count - 1; i >= 0; i--)
             {
                 var row = _rowContainer[i];
                 if (where != null && !where(in row)) continue;
@@ -51,8 +51,9 @@ public partial class Table<T> where T : struct, IEquatable<T>
                 Update(ref row);
             }
         }
+        
     }
-    
+
     public void Update(ref Row<T> row)
     {
         var result = TryUpdateInternal(ref row);
@@ -78,7 +79,7 @@ public partial class Table<T> where T : struct, IEquatable<T>
 
     private UpdateResult TryUpdateInternal(ref Row<T> row)
     {
-        lock (_sync)
+        using(_lock.WriteScope())
         {
             if (!TryGet(row.id, out var storedRow))
                 return UpdateResult.NotFound;
@@ -118,5 +119,6 @@ public partial class Table<T> where T : struct, IEquatable<T>
 
             return UpdateResult.Success;
         }
+        
     }
 }

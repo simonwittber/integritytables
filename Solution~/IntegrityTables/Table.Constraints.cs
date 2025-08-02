@@ -6,11 +6,14 @@ namespace IntegrityTables;
 public partial class Table<T>
 {
     private readonly List<(RowConditionFunc<T> func, string name)> _constraints = new();
-    
+
     public void AddConstraint(RowConditionFunc<T> func, string name)
     {
-        lock (_sync)
+        using(_lock.WriteScope())
+        {
             _constraints.Add((func, name));
+        }
+        
     }
 
     private void CheckConstraints(in Row<T> row)

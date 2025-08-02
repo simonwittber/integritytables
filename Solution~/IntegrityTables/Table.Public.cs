@@ -20,8 +20,8 @@ public partial class Table<T> : ITable<T> where T : struct, IEquatable<T>
     public Type ListType => typeof(List<Row<T>>);
     public IRowContainer<T> RowContainer => _rowContainer;
 
-    
-    public Table(IRowContainer<T>? rowContainer = null, IChangeSetLog<T>? changeLog = null, int capacity=1024)
+
+    public Table(IRowContainer<T>? rowContainer = null, IChangeSetLog<T>? changeLog = null, int capacity = 1024)
     {
         _capacity = capacity;
         _keyGenerator = new TableKeyGenerator();
@@ -32,12 +32,20 @@ public partial class Table<T> : ITable<T> where T : struct, IEquatable<T>
         OnRowModified += DispatchObservers;
         Name = typeof(T).Name;
     }
-    
+
     public int Count
     {
         get
         {
-            lock (_sync) return _rowContainer.Count;
+            _lock.EnterReadLock();
+            try
+            {
+                return _rowContainer.Count;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
     }
 
@@ -45,7 +53,15 @@ public partial class Table<T> : ITable<T> where T : struct, IEquatable<T>
     {
         get
         {
-            lock (_sync) return _changeSetLog.Count;
+            _lock.EnterReadLock();
+            try
+            {
+                return _changeSetLog.Count;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
     }
 
@@ -53,7 +69,15 @@ public partial class Table<T> : ITable<T> where T : struct, IEquatable<T>
     {
         get
         {
-            lock (_sync) return _changeSetLog.HasException;
+            _lock.EnterReadLock();
+            try
+            {
+                return _changeSetLog.HasException;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
     }
 
@@ -61,28 +85,42 @@ public partial class Table<T> : ITable<T> where T : struct, IEquatable<T>
     {
         get
         {
-            lock (_sync) return _changeSetLog.Exception;
+            _lock.EnterReadLock();
+            try
+            {
+                return _changeSetLog.Exception;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
     }
-    
+
     public bool ContainsKey(int id)
     {
-        lock (_sync)
+        using(_lock.ReadScope())
+        {
             return _rowContainer.ContainsKey(id);
+        }
+        
     }
 
     public bool Exists(RowConditionFunc<T> func)
     {
-        lock (_sync)
+        using(_lock.ReadScope())
         {
-            for (var i = 0; i < Count; i++)
             {
-                if (func(_rowContainer[i]))
-                    return true;
-            }
+                for (var i = 0; i < Count; i++)
+                {
+                    if (func(_rowContainer[i]))
+                        return true;
+                }
 
-            return false;
+                return false;
+            }
         }
+        
     }
 
     public bool Exists(DataConditionFunc<T> func) => Exists((in Row<T> row) => func(row.data));
@@ -91,28 +129,32 @@ public partial class Table<T> : ITable<T> where T : struct, IEquatable<T>
 
     public Row<T>[] ToArray()
     {
-        lock (_sync)
+        using(_lock.ReadScope())
         {
-            var rows = new Row<T>[Count];
-            var index = 0;
-            foreach (var id in this)
             {
-                var row = Get(id);
-                row._index = index;
-                rows[index] = row;
-                index++;
-            }
+                var rows = new Row<T>[Count];
+                var index = 0;
+                foreach (var id in this)
+                {
+                    var row = Get(id);
+                    row._index = index;
+                    rows[index] = row;
+                    index++;
+                }
 
-            return rows;
+                return rows;
+            }
         }
+        
     }
 
     public List<Row<T>> ToList()
     {
-        lock (_sync)
+        using(_lock.ReadScope())
         {
             return new List<Row<T>>(ToArray());
         }
+        
     }
 
     public void Load(IList<object> rows)
@@ -134,7 +176,7 @@ public partial class Table<T> : ITable<T> where T : struct, IEquatable<T>
 
     public void Load(IList<Row<T>> rows)
     {
-        lock (_sync)
+        using(_lock.WriteScope())
         {
             Warnings.Log($"{typeof(T).Name}: Loading {rows.Count} rows, clearing existing {_rowContainer.Count} rows...");
             _rowContainer.Clear(rows.Count);
@@ -162,5 +204,6 @@ public partial class Table<T> : ITable<T> where T : struct, IEquatable<T>
 
             ResetKeyGenerator();
         }
+        
     }
 }
