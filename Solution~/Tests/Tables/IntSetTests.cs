@@ -5,14 +5,14 @@ using NUnit.Framework;
 namespace IntegrityTables.Tests;
 
 [TestFixture]
-public class IdSetTests
+public class IntSetTests
 {
-    private IdSet _set;
+    private IntSet _set;
 
     [SetUp]
     public void Setup()
     {
-        _set = new IdSet();
+        _set = new IntSet();
     }
 
     [Test]

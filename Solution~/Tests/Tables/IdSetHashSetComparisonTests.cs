@@ -8,17 +8,17 @@ namespace IntegrityTables.Tests;
 [TestFixture]
 public class IdSetHashSetComparisonTests
 {
-    private IdSet _idSet;
+    private IntSet _intSet;
     private HashSet<int> _hashSet;
 
     [SetUp]
     public void Setup()
     {
-        _idSet = new IdSet();
+        _intSet = new IntSet();
         _hashSet = new HashSet<int>();
     }
 
-    bool IsEquivalent(int[] keys, IdSet b)
+    bool IsEquivalent(int[] keys, IntSet b)
     {
         foreach (var i in keys)
         {
@@ -35,7 +35,7 @@ public class IdSetHashSetComparisonTests
         
         foreach (var value in values)
         {
-            var idSetResult = _idSet.Add(value);
+            var idSetResult = _intSet.Add(value);
             var hashSetResult = _hashSet.Add(value);
         }
 
@@ -44,11 +44,11 @@ public class IdSetHashSetComparisonTests
             var isPresent = values.Contains(i);
             if (isPresent)
             {
-                Assert.That(_idSet.Contains(i), Is.True);
+                Assert.That(_intSet.Contains(i), Is.True);
             }
             else
             {
-                Assert.That(_idSet.Contains(i), Is.False);
+                Assert.That(_intSet.Contains(i), Is.False);
             }
         }
     }
@@ -59,28 +59,28 @@ public class IdSetHashSetComparisonTests
         var a = new[] { 0, 1, 5, 10, 63, 64, 65, 127, 128, 1000, 10000 };
         var b = new[] {0, 1, 5, 10, 12312312};
         
-        _idSet.UnionWith(a);
-        Assert.That(_idSet.Count, Is.EqualTo(a.Length));
-        _idSet.IntersectWith(b);
-        Assert.That(_idSet.Count, Is.EqualTo(4));
-        Assert.That(_idSet.Contains(b[0]), Is.True);
-        Assert.That(_idSet.Contains(b[1]), Is.True);
-        Assert.That(_idSet.Contains(b[2]), Is.True);
-        Assert.That(_idSet.Contains(b[3]), Is.True);
-        Assert.That(_idSet.Contains(b[4]), Is.False);
+        _intSet.UnionWith(a);
+        Assert.That(_intSet.Count, Is.EqualTo(a.Length));
+        _intSet.IntersectWith(b);
+        Assert.That(_intSet.Count, Is.EqualTo(4));
+        Assert.That(_intSet.Contains(b[0]), Is.True);
+        Assert.That(_intSet.Contains(b[1]), Is.True);
+        Assert.That(_intSet.Contains(b[2]), Is.True);
+        Assert.That(_intSet.Contains(b[3]), Is.True);
+        Assert.That(_intSet.Contains(b[4]), Is.False);
         
-        Assert.That(_idSet.Contains(a[4]), Is.False);
-        Assert.That(_idSet.Contains(a[5]), Is.False);
-        Assert.That(_idSet.Contains(a[6]), Is.False);
-        Assert.That(_idSet.Contains(a[7]), Is.False);
-        Assert.That(_idSet.Contains(a[8]), Is.False);
-        Assert.That(_idSet.Contains(a[9]), Is.False);
-        Assert.That(_idSet.Contains(a[10]), Is.False);
+        Assert.That(_intSet.Contains(a[4]), Is.False);
+        Assert.That(_intSet.Contains(a[5]), Is.False);
+        Assert.That(_intSet.Contains(a[6]), Is.False);
+        Assert.That(_intSet.Contains(a[7]), Is.False);
+        Assert.That(_intSet.Contains(a[8]), Is.False);
+        Assert.That(_intSet.Contains(a[9]), Is.False);
+        Assert.That(_intSet.Contains(a[10]), Is.False);
         
         _hashSet.UnionWith(a);
         _hashSet.IntersectWith(b);
         
-        Assert.That(_hashSet, Is.EquivalentTo(_idSet.ToList()));
+        Assert.That(_hashSet, Is.EquivalentTo(_intSet.ToList()));
     }
     
     [Test]
@@ -90,13 +90,13 @@ public class IdSetHashSetComparisonTests
         
         foreach (var value in values)
         {
-            var idSetResult = _idSet.Add(value);
+            var idSetResult = _intSet.Add(value);
             var hashSetResult = _hashSet.Add(value);
         }
 
-        foreach (var value in _idSet)
+        foreach (var value in _intSet)
         {
-            Assert.That(_idSet.Contains(value), Is.True, $"Got an incorrect value from IdSet iterator: {value}");
+            Assert.That(_intSet.Contains(value), Is.True, $"Got an incorrect value from IdSet iterator: {value}");
         }
     }
 
@@ -109,15 +109,15 @@ public class IdSetHashSetComparisonTests
         // Setup initial state
         foreach (var value in initialValues)
         {
-            _idSet.Add(value);
+            _intSet.Add(value);
             _hashSet.Add(value);
         }
         
         // Perform except with empty collection
-        _idSet.ExceptWith(exceptValues);
+        _intSet.ExceptWith(exceptValues);
         _hashSet.ExceptWith(exceptValues);
         
-        Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+        Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
 
     }
 
@@ -131,15 +131,15 @@ public class IdSetHashSetComparisonTests
         // Setup initial state
         foreach (var value in initialValues)
         {
-            _idSet.Add(value);
+            _intSet.Add(value);
             _hashSet.Add(value);
         }
         
         // Perform except
-        _idSet.ExceptWith(exceptValues);
+        _intSet.ExceptWith(exceptValues);
         _hashSet.ExceptWith(exceptValues);
         
-        Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+        Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
 
     }
 
@@ -153,15 +153,15 @@ public class IdSetHashSetComparisonTests
         // Setup initial state
         foreach (var value in initialValues)
         {
-            _idSet.Add(value);
+            _intSet.Add(value);
             _hashSet.Add(value);
         }
         
         // Perform except
-        _idSet.ExceptWith(exceptValues);
+        _intSet.ExceptWith(exceptValues);
         _hashSet.ExceptWith(exceptValues);
         
-        Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+        Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
 
     }
 
@@ -174,15 +174,15 @@ public class IdSetHashSetComparisonTests
         // Setup initial state
         foreach (var value in initialValues)
         {
-            _idSet.Add(value);
+            _intSet.Add(value);
             _hashSet.Add(value);
         }
         
         // Perform except
-        _idSet.ExceptWith(exceptValues);
+        _intSet.ExceptWith(exceptValues);
         _hashSet.ExceptWith(exceptValues);
         
-        Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+        Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
 
     }
 
@@ -195,15 +195,15 @@ public class IdSetHashSetComparisonTests
         // Setup initial state
         foreach (var value in initialValues)
         {
-            _idSet.Add(value);
+            _intSet.Add(value);
             _hashSet.Add(value);
         }
         
         // Perform symmetric except with empty collection
-        _idSet.SymmetricExceptWith(symmetricExceptValues);
+        _intSet.SymmetricExceptWith(symmetricExceptValues);
         _hashSet.SymmetricExceptWith(symmetricExceptValues);
         
-        Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+        Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
 
     }
 
@@ -217,15 +217,15 @@ public class IdSetHashSetComparisonTests
         // Setup initial state
         foreach (var value in initialValues)
         {
-            _idSet.Add(value);
+            _intSet.Add(value);
             _hashSet.Add(value);
         }
         
         // Perform symmetric except
-        _idSet.SymmetricExceptWith(symmetricExceptValues);
+        _intSet.SymmetricExceptWith(symmetricExceptValues);
         _hashSet.SymmetricExceptWith(symmetricExceptValues);
         
-        Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+        Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
 
     }
 
@@ -240,15 +240,15 @@ public class IdSetHashSetComparisonTests
         // Setup initial state
         foreach (var value in initialValues)
         {
-            _idSet.Add(value);
+            _intSet.Add(value);
             _hashSet.Add(value);
         }
         
         // Perform symmetric except
-        _idSet.SymmetricExceptWith(symmetricExceptValues);
+        _intSet.SymmetricExceptWith(symmetricExceptValues);
         _hashSet.SymmetricExceptWith(symmetricExceptValues);
         
-        Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+        Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
 
     }
 
@@ -261,15 +261,15 @@ public class IdSetHashSetComparisonTests
         // Setup initial state
         foreach (var value in initialValues)
         {
-            _idSet.Add(value);
+            _intSet.Add(value);
             _hashSet.Add(value);
         }
         
         // Perform symmetric except
-        _idSet.SymmetricExceptWith(symmetricExceptValues);
+        _intSet.SymmetricExceptWith(symmetricExceptValues);
         _hashSet.SymmetricExceptWith(symmetricExceptValues);
         
-        Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+        Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
 
     }
 
@@ -284,16 +284,16 @@ public class IdSetHashSetComparisonTests
         // Setup initial state
         foreach (var value in initialValues)
         {
-            _idSet.Add(value);
+            _intSet.Add(value);
             _hashSet.Add(value);
         }
-        Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+        Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
 
         // Perform symmetric except
-        _idSet.SymmetricExceptWith(symmetricExceptValues);
+        _intSet.SymmetricExceptWith(symmetricExceptValues);
         _hashSet.SymmetricExceptWith(symmetricExceptValues);
         
-       Assert.That(_idSet.ToList(), Is.EquivalentTo(_hashSet));
+       Assert.That(_intSet.ToList(), Is.EquivalentTo(_hashSet));
     }
 
    

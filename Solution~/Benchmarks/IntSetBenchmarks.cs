@@ -15,8 +15,9 @@ public class IdSetBenchmarks
     private int[] aKeys, bKeys;
     private int[] lookupKeys;
 
-    private IdSet precomputedIdSet;
-    HashSet<int> precomputedHashSet;
+    private IdSet idSet;
+    private IntSet intSet;
+    HashSet<int> hashSet;
     
     [IterationSetup]
     public void Setup()
@@ -42,15 +43,24 @@ public class IdSetBenchmarks
             (bKeys[i], bKeys[j]) = (bKeys[j], bKeys[i]);
         }
 
-        precomputedIdSet = new IdSet(aKeys);
-        precomputedHashSet = new HashSet<int>(aKeys);
+        idSet = new IdSet(aKeys);
+        hashSet = new HashSet<int>(aKeys);
+        intSet = new IntSet(aKeys);
     }
 
     [Benchmark]
     public void IdSet_Iterate()
     {
         var x = 0;
-        foreach (var i in precomputedIdSet)
+        foreach (var i in idSet)
+            x += i;
+    }
+    
+    [Benchmark]
+    public void IntSet_Iterate()
+    {
+        var x = 0;
+        foreach (var i in intSet)
             x += i;
     }
     
@@ -58,20 +68,28 @@ public class IdSetBenchmarks
     public void HashSet_Iterate()
     {
         var x = 0;
-        foreach (var i in precomputedHashSet)
+        foreach (var i in hashSet)
             x += i;
     }
     
     [Benchmark]
     public void IdSet_Add()
     {
-        var intSet = new IdSet();
+        var idSet = new IdSet();
         for (var i = 0; i < N; i++)
         {
-            intSet.Add(lookupKeys[i]);
+            idSet.Add(lookupKeys[i]);
         }
     }
-
+    [Benchmark]
+    public void IntSet_Add()
+    {
+        var idSet = new IntSet();
+        for (var i = 0; i < N; i++)
+        {
+            idSet.Add(lookupKeys[i]);
+        }
+    }
     [Benchmark]
     public void HashSet_Add()
     {
@@ -87,7 +105,16 @@ public class IdSetBenchmarks
     {
         for (var i = 0; i < N; i++)
         {
-            precomputedIdSet.Contains(lookupKeys[i]);
+            idSet.Contains(lookupKeys[i]);
+        }
+    }
+    
+    [Benchmark]
+    public void IntSet_Contains()
+    {
+        for (var i = 0; i < N; i++)
+        {
+            intSet.Contains(lookupKeys[i]);
         }
     }
 
@@ -96,15 +123,22 @@ public class IdSetBenchmarks
     {
         for (var i = 0; i < N; i++)
         {
-            precomputedHashSet.Contains(lookupKeys[i]);
+            hashSet.Contains(lookupKeys[i]);
         }
     }
     
     [Benchmark]
     public void IdSet_IntersectWith()
     {
-        var intSet = new IdSet(aKeys);
-        intSet.IntersectWith(bKeys);
+        var idSet = new IdSet(aKeys);
+        idSet.IntersectWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void IntSet_IntersectWith()
+    {
+        var idSet = new IntSet(aKeys);
+        idSet.IntersectWith(bKeys);
     }
     
     [Benchmark]
@@ -117,8 +151,15 @@ public class IdSetBenchmarks
     [Benchmark]
     public void IdSet_UnionWith()
     {
-        var intSet = new IdSet(aKeys);
-        intSet.UnionWith(bKeys);
+        var idSet = new IdSet(aKeys);
+        idSet.UnionWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void IntSet_UnionWith()
+    {
+        var idSet = new IntSet(aKeys);
+        idSet.UnionWith(bKeys);
     }
     
     [Benchmark]
@@ -131,24 +172,37 @@ public class IdSetBenchmarks
     [Benchmark]
     public void IdSet_ExceptWith()
     {
-        precomputedIdSet.ExceptWith(bKeys);
+        idSet.ExceptWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void IntSet_ExceptWith()
+    {
+        intSet.ExceptWith(bKeys);
     }
     
     [Benchmark]
     public void HashSet_ExceptWith()
     {
-        precomputedHashSet.ExceptWith(bKeys);
+        hashSet.ExceptWith(bKeys);
     }
     
     [Benchmark]
     public void IdSet_SymmetricExceptWith()
     {
-        precomputedIdSet.SymmetricExceptWith(bKeys);
+        idSet.SymmetricExceptWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void IntSet_SymmetricExceptWith()
+    {
+        intSet.SymmetricExceptWith(bKeys);
+        intSet.SymmetricExceptWith(bKeys);
     }
     
     [Benchmark]
     public void HashSet_SymmetricExceptWith()
     {
-        precomputedHashSet.SymmetricExceptWith(bKeys);
+        hashSet.SymmetricExceptWith(bKeys);
     }
 }
