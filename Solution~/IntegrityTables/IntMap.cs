@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
@@ -101,7 +102,7 @@ public class IntMap<T>
 /// Memory usage is O(max_value / 64). Very large values (over 10M) will cause significant memory allocation.
 /// However memory usage is still much lower than a HashSet for the same number of elements.
 /// </summary>
-public class IntSet
+public class IntSet : IEnumerable<int>
 {
     
     private const int PageBits = 6;
@@ -300,8 +301,10 @@ public class IntSet
     }
 
     public Enumerator GetEnumerator() => new Enumerator(_pages, _pageCount);
-
-    public struct Enumerator
+    IEnumerator<int> IEnumerable<int>.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    
+    public struct Enumerator : IEnumerator<int>
     {
         private readonly ulong[] _pages;
         private readonly int _pageCount;
@@ -309,7 +312,16 @@ public class IntSet
         private ulong _currentBits;
         private int _currentPageBase;
 
+        public void Reset()
+        {
+            _currentPageIndex = -1;
+            _currentBits = 0;
+            _currentPageBase = 0;
+            Current = 0;
+        }
+
         public int Current { get; private set; }
+        object IEnumerator.Current => Current;
 
         internal Enumerator(ulong[] pages, int pageCount)
         {
@@ -346,6 +358,11 @@ public class IntSet
             }
 
             return false;
+        }
+
+        public void Dispose()
+        {
+            
         }
     }
 
