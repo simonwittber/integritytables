@@ -52,7 +52,23 @@ public class IdSetHashSetComparisonTests
             }
         }
     }
+    [Test]
+    public void CheckIntersectionMethods()
+    {
+        var a = new[] { 0, 1, 5, 10, 63, 64, 65, 127, 128, 1000, 10000 };
+        var b = new[] {0, 1, 5, 10, 12312312};
+        
+        _intSet.UnionWith(a);
+        var intSet2 = new IntSet();
+        intSet2.UnionWith(b);
+        _intSet.IntersectWith(intSet2);
+        
+        _hashSet.UnionWith(a);
+        _hashSet.IntersectWith(b);
+        
+        Assert.That(_hashSet, Is.EquivalentTo(_intSet.ToList()));
 
+    }
     [Test]
     public void CheckIntersection()
     {
