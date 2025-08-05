@@ -9,27 +9,23 @@ public partial class Table<T> where T : struct, IEquatable<T>
     /// </summary>
     public void Sort(Comparison<Row<T>> comparison)
     {
-        using(_lock.WriteScope())
+        // snapshot
+        var rows = ToArray();
+        // sort by payload T
+        Array.Sort(rows, (r1, r2) => comparison(r1, r2));
+
+        // rebuild container & indexes
+        _rowContainer.Clear(rows.Length);
+        foreach (var idx in _indexes) idx.Clear();
+
+        for (int i = 0; i < rows.Length; i++)
         {
-            // snapshot
-            var rows = ToArray();
-            // sort by payload T
-            Array.Sort(rows, (r1, r2) => comparison(r1, r2));
-
-            // rebuild container & indexes
-            _rowContainer.Clear(rows.Length);
-            foreach (var idx in _indexes) idx.Clear();
-
-            for (int i = 0; i < rows.Length; i++)
-            {
-                ref var row = ref rows[i];
-                row._index = i; // patch the new slot
-                _rowContainer.Add(ref row); // insert into container
-                foreach (var idx in _indexes) // rebuild unique indexes
-                    idx.Add(in row);
-            }
+            ref var row = ref rows[i];
+            row._index = i; // patch the new slot
+            _rowContainer.Add(ref row); // insert into container
+            foreach (var idx in _indexes) // rebuild unique indexes
+                idx.Add(in row);
         }
-        
     }
 
     public void SortBy<TKey1, TKey2>(

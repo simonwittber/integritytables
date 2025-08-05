@@ -52,42 +52,38 @@ public partial class Table<T> where T : struct, IEquatable<T>
 
     public bool TryAdd(ref Row<T> row, bool enableTriggers = true, bool enableConstraints = true)
     {
-        using(_lock.WriteScope())
+        if (enableTriggers) ValidateForAdd?.Invoke(row.data);
+        CheckChangeSetState();
+        if (row.id == 0)
         {
-            if (enableTriggers) ValidateForAdd?.Invoke(row.data);
-            CheckChangeSetState();
-            if (row.id == 0)
-            {
-                row.id = _keyGenerator.NextId();
-            }
-            else
-            {
-                if (ContainsKey(row.id))
-                    return false;
-                _keyGenerator.EnsureAtLeast(row.id);
-            }
-
-            var entered = false;
-            try
-            {
-                TriggerGuard.Enter(GetType());
-                entered = true;
-                BeforeAdd.Invoke(ref row, enableTriggers);
-                if (enableConstraints) CheckConstraints(in row);
-                foreach (var index in _indexes)
-                    index.Add(in row);
-                _rowContainer.Add(ref row);
-                AfterAdd.Invoke(in row, enableTriggers);
-                if (_isInChangeSet) _changeSetLog.RegisterAdd(row);
-            }
-            finally
-            {
-                if (entered)
-                    TriggerGuard.Exit(GetType());
-            }
-
-            return true;
+            row.id = _keyGenerator.NextId();
         }
-        
+        else
+        {
+            if (ContainsKey(row.id))
+                return false;
+            _keyGenerator.EnsureAtLeast(row.id);
+        }
+
+        var entered = false;
+        try
+        {
+            TriggerGuard.Enter(GetType());
+            entered = true;
+            BeforeAdd.Invoke(ref row, enableTriggers);
+            if (enableConstraints) CheckConstraints(in row);
+            foreach (var index in _indexes)
+                index.Add(in row);
+            _rowContainer.Add(ref row);
+            AfterAdd.Invoke(in row, enableTriggers);
+            if (_isInChangeSet) _changeSetLog.RegisterAdd(row);
+        }
+        finally
+        {
+            if (entered)
+                TriggerGuard.Exit(GetType());
+        }
+
+        return true;
     }
 }

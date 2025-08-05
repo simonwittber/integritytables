@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace IntegrityTables;
 
@@ -16,7 +17,7 @@ public class PagedIdMap : IIdMap
 
     // outer list of pages; pages[p] is null until first use
     private readonly List<int[]> _pages = new List<int[]>();
-
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsurePage(int pageIndex)
     {
         while (_pages.Count <= pageIndex)
@@ -27,14 +28,14 @@ public class PagedIdMap : IIdMap
             Array.Fill(_pages[pageIndex], -1);
         }
     }
-
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Remove(int key) => this[key] = -1;
-
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsKey(int id)
     {
         return this[id] != -1;
     }
-
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetValue(int key, out int value)
     {
         value = this[key];
@@ -43,6 +44,7 @@ public class PagedIdMap : IIdMap
     
     public int this[int key]
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
             if (key < 0) return -1;
@@ -51,6 +53,7 @@ public class PagedIdMap : IIdMap
                 return -1;
             return _pages[pageIndex][key & PageMask];
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         set
         {
             if (key < 0) throw new ArgumentOutOfRangeException(nameof(key));

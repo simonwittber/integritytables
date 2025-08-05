@@ -9,7 +9,6 @@ public partial class Table<T> where T : struct, IEquatable<T>
     internal IRowContainer<T> _rowContainer;
     internal TableKeyGenerator _keyGenerator;
     private readonly int _capacity;
-    private ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 
 
     private void RaiseException(Exception exception)
@@ -29,17 +28,14 @@ public partial class Table<T> where T : struct, IEquatable<T>
     internal void ResetKeyGenerator()
     {
         var maxKey = 0;
-        using (_lock.WriteScope())
+        for (var i = 0; i < _rowContainer.Count; i++)
         {
-            for (var i = 0; i < _rowContainer.Count; i++)
-            {
-                var row = _rowContainer[i];
-                if (row.id > maxKey)
-                    maxKey = row.id;
-            }
-
-            if (_isInChangeSet) _changeSetLog.RegisterKeyGeneratorReset(_keyGenerator.CurrentKey);
-            _keyGenerator.Reset(maxKey);
+            var row = _rowContainer[i];
+            if (row.id > maxKey)
+                maxKey = row.id;
         }
+
+        if (_isInChangeSet) _changeSetLog.RegisterKeyGeneratorReset(_keyGenerator.CurrentKey);
+        _keyGenerator.Reset(maxKey);
     }
 }

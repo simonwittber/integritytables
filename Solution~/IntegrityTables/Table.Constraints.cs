@@ -9,11 +9,7 @@ public partial class Table<T>
 
     public void AddConstraint(RowConditionFunc<T> func, string name)
     {
-        using(_lock.WriteScope())
-        {
-            _constraints.Add((func, name));
-        }
-        
+        _constraints.Add((func, name));
     }
 
     private void CheckConstraints(in Row<T> row)
