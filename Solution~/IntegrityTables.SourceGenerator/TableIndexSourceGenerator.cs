@@ -16,6 +16,7 @@ public class TableIndexSourceGenerator
 using System;
 using System.Collections.Generic;
 using IntegrityTables;
+using System.Runtime.CompilerServices;
 
 ");
             if (!string.IsNullOrEmpty(table.NameSpace))
@@ -139,12 +140,14 @@ using IntegrityTables;
                 {
                     sb.AppendLine($@"
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public {field.QualifiedTypeName} GetBy{field.CapitalizedName}({field.QualifiedTypeName} id) 
         {{
             return map_{field.Name}[id];
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetBy{field.CapitalizedName}({field.QualifiedTypeName} id, out {field.QualifiedTypeName} value) 
         {{
             return map_{field.Name}.TryGetValue(id, out value);
@@ -161,12 +164,14 @@ using IntegrityTables;
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ObservableList<{field.QualifiedTypeName}> SelectBy{field.CapitalizedName}({field.QualifiedTypeName} id) 
         {{
             return GetOrCreateList_{field.Name}(id);
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TrySelectBy{field.CapitalizedName}({field.QualifiedTypeName} id, out ObservableList<{field.QualifiedTypeName}> values) 
         {{
             return {field.Name}.TryGetValue(id, out values);

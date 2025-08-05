@@ -23,6 +23,7 @@ public class RowContainerSourceGenerator
 
 using System;
 using IntegrityTables;
+using System.Runtime.CompilerServices;
 ");
         if (!string.IsNullOrEmpty(table.NameSpace))
         {
@@ -60,12 +61,15 @@ using IntegrityTables;
         public int Count => count;
         
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ContainsKey(int id) => _idToIndex.ContainsKey(id);
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetIndexForId(int id, out int index) => _idToIndex.TryGetValue(id, out index);
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetIdForIndex(int index, out int id)
         {{
             if (index < 0 || index >= count) 
@@ -78,15 +82,18 @@ using IntegrityTables;
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int GetIndexForId(int id) => _idToIndex[id];
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Row<{table.TypeName}> Get(Row<{table.TypeName}> row)
         {{
             return this[GetIndexForId(row.id)];
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Set(ref Row<{table.TypeName}> row)
         {{
             row._index = GetIndexForId(row.id);
@@ -95,6 +102,7 @@ using IntegrityTables;
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(ref Row<{table.TypeName}> row)
         {{
             if (count == ids.Length)
@@ -111,6 +119,7 @@ using IntegrityTables;
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Remove(in Row<{table.TypeName}> row)
         {{
             int slot = _idToIndex[row.id];
@@ -135,6 +144,7 @@ using IntegrityTables;
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void SetVersion(int index, int version)
         {{
             versions[index] = version;
@@ -154,6 +164,7 @@ using IntegrityTables;
         // {DatabaseSourceGenerator.GenerationStamp()}
         public Row<{table.TypeName}> this[int index]
         {{
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {{
                 // reconstruct a Row<T> on‐the‐fly from column arrays:
@@ -167,6 +178,7 @@ using IntegrityTables;
                 temp.data = data;
                 return temp;
             }}
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             set
             {{
                 var data = value.data;
