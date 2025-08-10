@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -139,20 +138,7 @@ using IntegrityTables;
         public void ValidateIntegrity() {{
 {GenerateValidatorMethod(model)}
         }}
-#endregion
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        /// <summary>
-        /// This 'scope' is used to create a context for rows which do not hold a reference to the database.
-        /// This allows Row<T> to be a small as possible, which is important for performance and memory usage, but still allow
-        /// the convenient extension methods we generate for Row<T>.
-        /// The 'scope' is a fake singleton, that becomes null when the scope is disposed. This gives us a way to
-        /// to have the convenience of a singleton, while minimizing the danger of using a singleton in a multithreaded environment
-        /// and the potential problems with unit testing when using static singletons.
-        /// </summary>
-        public Context<{model.QualifiedTypeName}> CreateContext() {{
-            return new Context<{model.QualifiedTypeName}>(this);
-        }}
+#endregion    
 
         public struct Enumerator : IEnumerator<ITable>
         {{
@@ -385,134 +371,6 @@ using IntegrityTables;
     private string BuildIndexProperties(DatabaseModel model)
     {
         return string.Join("\n", model.Tables.Select(t => $"        //public {t.QualifiedTypeName}TableIndex {t.FacadeName}Index {{ get; private set; }}"));
-    }
-
-    private string BuildInitializeTriggers(DatabaseModel model)
-    {
-        var lines = new List<string>();
-        foreach (var tableModel in model.Tables)
-        {
-            lines.Add($"            // {DatabaseSourceGenerator.GenerationStamp()}");
-            lines.Add($"            // Initialize referential validation callbacks for {tableModel.TypeName}");
-            lines.Add($"            {tableModel.FacadeName}.ValidateReferentialIntegrity = CheckReferentialIntegrityOn{tableModel.TypeName};");
-            lines.Add($"            {tableModel.FacadeName}.ExecuteCascadingRemove = ExecuteCascadingRemove{tableModel.TypeName}Row;");
-            var tf = tableModel.FieldName;  // e.g. "OrderTable"
-            
-
-            foreach (var triggerModel in tableModel.Triggers)
-            {
-                var parameters = string.Join(", ", Enumerable.Range(0, triggerModel.RefKinds.Length).Select(i => $"{triggerModel.RefKinds[i].ToString().ToLower()} Row<{tableModel.QualifiedTypeName}> row{i}"));
-                var arguments = string.Join(", ", Enumerable.Range(0, triggerModel.RefKinds.Length).Select(i => $"{triggerModel.RefKinds[i].ToString().ToLower()} row{i}"));
-                if (triggerModel.IsFieldTrigger)
-                {
-                    var changedField = triggerModel.FieldName;
-                    var predicate = $"if(row0.data.{changedField} != row1.data.{changedField})";
-                    lines.Add($"            // this is a field level trigger for '{tableModel.TypeName}.{changedField}'");
-                    lines.Add($"            {tableModel.FieldName}.{triggerModel.EventName} += ({parameters}) => {{ {predicate} {tableModel.QualifiedTypeName}.{triggerModel.Method.Name}(this, {arguments}); }};");
-                }
-                else
-                {
-                    lines.Add($"            // this is a row level trigger for '{tableModel.TypeName}'");
-                    lines.Add($"            {tableModel.FieldName}.{triggerModel.EventName} += ({parameters}) => {tableModel.QualifiedTypeName}.{triggerModel.Method.Name}(this, {arguments});");
-                }
-            }
-            
-            foreach (var fieldModel in tableModel.Fields)
-            {
-                if (fieldModel.ValidatorModel != null)
-                {
-                    lines.Add($"            {tf}.BeforeAdd += (-5, ((ref Row<{tableModel.TypeName}> row) => row.data.{fieldModel.ValidatorModel.MethodSymbol.Name}()));");
-                    lines.Add($"            {tf}.BeforeUpdate += (-5, ((in Row<{tableModel.TypeName}> oldRow, ref Row<{tableModel.TypeName}> newRow) => {{ if(newRow.data.{fieldModel.Name} != oldRow.data.{fieldModel.Name}) newRow.data.{fieldModel.ValidatorModel.MethodSymbol.Name}(); }}));");
-                }
-                if (fieldModel.IsImmutable)
-                {
-                    lines.Add($"            {tf}.BeforeUpdate += (1000, ((in Row<{tableModel.TypeName}> oldRow, ref Row<{tableModel.TypeName}> newRow) => {{ if(newRow.data.{fieldModel.Name} != oldRow.data.{fieldModel.Name}) throw new InvalidOperationException(\"Cannot modify Immutable field '{fieldModel.Name}'\"); }}));");           
-                }
-                if (fieldModel.IsComputed)
-                {
-                    lines.Add($"            {tf}.BeforeAdd += (999, ((ref Row<{tableModel.TypeName}> row) => {{ if(row.data.{fieldModel.Name} != default) throw new InvalidOperationException(\"Cannot modify Immutable field '{fieldModel.Name}'\"); }}));");
-                    lines.Add($"            {tf}.BeforeUpdate += (999, ((in Row<{tableModel.TypeName}> oldRow, ref Row<{tableModel.TypeName}> newRow) => {{ if(newRow.data.{fieldModel.Name} != oldRow.data.{fieldModel.Name}) throw new InvalidOperationException(\"Cannot modify Computed field '{fieldModel.Name}'\"); }}));");
-                    lines.Add($"            {tf}.BeforeAdd += (1000, (ref Row<{tableModel.TypeName}> row) => row.data.{fieldModel.Name} = {tableModel.TypeName}.Compute_{fieldModel.Name}(this, row));");
-                    lines.Add($"            {tf}.BeforeUpdate += (1000, (in Row<{tableModel.TypeName}> oldRow, ref Row<{tableModel.TypeName}> newRow) => newRow.data.{fieldModel.Name} = {tableModel.TypeName}.Compute_{fieldModel.Name}(this, newRow));");
-                }
-
-                if (fieldModel.IsReference && fieldModel.CreateIfMissing)
-                {
-                    // Auto create records, usually an entity, if they are not set.
-                    lines.Add($"            {tf}.BeforeAdd += (-10, ((ref Row<{tableModel.TypeName}> row) => {{ if(row.data.{fieldModel.Name} == 0) row.data.{fieldModel.Name} = {fieldModel.ReferencedTableModel.FacadeName}.Add(new {fieldModel.ReferencedTableModel.QualifiedTypeName}()).id; }}));");
-                }
-                // if this field is a reference to a component table, and the targetTable entityId is marked unique, it is safe to lookup
-                // an existing row using the trigger.
-                if (fieldModel.IsComponentReference && fieldModel.ReferencedTableModel[fieldModel.EntityReferenceField.Name].IsUnique)
-                {
-                    if (fieldModel.IsNotNull)
-                    {
-                        lines.Add(@$"            {tf}.BeforeAdd += (-9, ((ref Row<{tableModel.TypeName}> row) => 
-            {{
-                if(row.data.{fieldModel.Name} == 0) // if not set, try and find matching row
-                    {fieldModel.ReferencedTableModel.FacadeName}Index.TryGetBy{fieldModel.EntityReferenceField.CapitalizedName}(row.data.{fieldModel.EntityReferenceField.Name}, out row.data.{fieldModel.Name});
-                if(row.data.{fieldModel.Name} == 0) // if still not set, create a new row, because this is a not null field.
-                    row.data.{fieldModel.Name} = {fieldModel.ReferencedTableModel.FacadeName}.Add(new {fieldModel.ReferencedTableModel.QualifiedTypeName}() {{ {fieldModel.EntityReferenceField.Name}=row.data.{fieldModel.EntityReferenceField.Name} }}).id;
-            }}));");                        
-                    }
-                    else
-                    {
-                        lines.Add(@$"            {tf}.BeforeAdd += (-9, ((ref Row<{tableModel.TypeName}> row) => 
-            {{
-                if(row.data.{fieldModel.Name} == 0) // if not set, try and find matching row
-                    {fieldModel.ReferencedTableModel.FacadeName}Index.TryGetBy{fieldModel.EntityReferenceField.CapitalizedName}(row.data.{fieldModel.EntityReferenceField.Name}, out row.data.{fieldModel.Name}); 
-            }}));");
-                    }
-                }
-            }
-        }
-
-        return string.Join("\n", lines);
-    }
-
-    private string BuildReverseContextExtensionMethods(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        foreach (var table in model.Tables)
-        {
-            // kv.Key is the referenced type, e.g. Department
-            foreach (var field in table.Dependencies)
-            {
-                if (field.CollectionName == null) continue;
-                if (field.TableModel.IsManyToMany) continue;
-                // refTable is the struct that has a Department_id field, e.g. Employee
-                var refTableName = field.TableModel.QualifiedTypeName;
-                sb.AppendLine($@"
-        /// <summary>
-        ///  Fetch all <see cref=""Row`{refTableName}`""/> where `{field.FieldSymbol.Name}` is the id of this `{table.QualifiedTypeName}`.
-        /// </summary>
-        public static ObservableList<int> {field.CollectionName}(this in Row<{table.QualifiedTypeName}> row)
-        {{
-            var db = Context<{model.DatabaseSymbol.Name}>.Current;
-            var id = row.id;
-            return db.{field.TableModel.FacadeName}Index.SelectBy{field.CapitalizedName}(row.id);
-        }}");
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private string BuildContextExtensionMethods(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        foreach (var table in model.Tables)
-        {
-            BuildOneToManyExtensions(model, table, sb);
-            BuildEntityExtensionMethods(model, table, sb);
-            BuildQueryPropertyExtensionMethods(model, table, sb);
-        }
-
-        foreach (var manyToMany in model.ManyToManyModels)
-        {
-            BuildManyToManyExtensions(model, manyToMany, sb);
-        }
-        return sb.ToString();
     }
 
     private string GenerateValidatorMethod(DatabaseModel model)

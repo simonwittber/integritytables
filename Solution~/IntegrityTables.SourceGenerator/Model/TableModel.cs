@@ -129,18 +129,8 @@ public class TableModel
         {
             if (TableSymbol.ContainingNamespace.IsGlobalNamespace)
                 return "";
-            var tableNameSpace = TableSymbol.ContainingNamespace.Name;
-            var modelNameSpace = DatabaseModel.DatabaseSymbol.ContainingNamespace.Name;
-            if (tableNameSpace == modelNameSpace)
-            {
-                return "";
-            }
-
-            if (tableNameSpace.StartsWith(modelNameSpace))
-            {
-                return $"{tableNameSpace.Substring(modelNameSpace.Length + 1)}.";
-            }
-            return $"{tableNameSpace}.";
+            
+            return $"{NameSpace}.";
             
         }
     }

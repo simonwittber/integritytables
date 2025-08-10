@@ -9,7 +9,6 @@ public class TestReferencesWithPropertyName
     public void TestPropertyNameExists()
     {
         var db = new Database();
-        using var context = db.CreateContext();
         var employee = new Employee { name = "John Doe" };
         var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
         employee.departmentId = dept;
@@ -24,7 +23,6 @@ public class TestReferencesWithPropertyName
     public void TestPropertyNameNotExists()
     {
         var db = new Database();
-        using var context = db.CreateContext();
         var employee = new Employee { name = "John Doe" };
         var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
         employee.departmentId = dept;

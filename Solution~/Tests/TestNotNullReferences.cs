@@ -9,7 +9,6 @@ public class TestNotNullReferences
     public void TestAddRow()
     {
         var db = new Database();
-        using var context = db.CreateContext();
         
         var employeeTable = db.EmployeeTable;
         var employee = new Employee { name = "John Doe" };
@@ -33,7 +32,6 @@ public class TestNotNullReferences
     public void TestReferenceDefaultsToNull()
     {
         var db = new Database();
-        using var context = db.CreateContext();
         var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
 
         var employee = new Employee { name = "John Doe" };
@@ -45,7 +43,6 @@ public class TestNotNullReferences
     public void TestAddRowWithInvalidReference()
     {
         var db = new Database();
-        using var context = db.CreateContext();
         
         var employeeTable = db.EmployeeTable;
         var employee = new Employee { name = "John Doe" };
@@ -59,7 +56,6 @@ public class TestNotNullReferences
     public void TestAddRowAddsToIndex()
     {
         var db = new Database();
-        using var context = db.CreateContext();
         var employeeTable = db.EmployeeTable;
         var employee = new Employee { name = "John Doe" };
         var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
@@ -72,7 +68,6 @@ public class TestNotNullReferences
     public void TestSetRowAddsToIndex()
     {
         var db = new Database();
-        using var context = db.CreateContext();
         var employeeTable = db.EmployeeTable;
         
         var dept1 = db.DepartmentTable.Add(new Department() { name = "HR" });

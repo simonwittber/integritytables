@@ -5,13 +5,20 @@ using System.Runtime.CompilerServices;
 
 namespace IntegrityTables;
 
+public interface IReadOnlyIntSet
+{
+    int Count { get; }
+    bool Contains(int value);
+    int[] ToArray();
+    List<int> ToList();
+}
 
 /// <summary>
 /// A memory-efficient set for storing integers, optimized for dense ranges of integer keys.
 /// Note, a sparse, large range is not stored efficiently.
 /// Use this class for fast membership checks and set operations on integers.
 /// </summary>
-public class IntSet : IEnumerable<int>
+public class IntSet : IEnumerable<int>, IReadOnlyIntSet
 {
     private const int PageBits = 6;
     private const int PageSize = 1 << PageBits;

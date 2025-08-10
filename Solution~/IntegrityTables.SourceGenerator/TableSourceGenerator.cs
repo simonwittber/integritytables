@@ -41,7 +41,7 @@ using System.Runtime.CompilerServices;
 
         public int Capacity => _rowContainer.Capacity;
     
-        public int Add(in {table.TypeName} row) => _rowContainer.Add(in row);
+{GenerateAddMethod(context, table)}     
 
         public void Remove(int id) => _rowContainer.Get(id).Remove();
 
@@ -132,13 +132,41 @@ using System.Runtime.CompilerServices;
         context.AddSource($"{model.FileName("Table", table.TypeName)}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
+    private static string GenerateAddMethod(SourceProductionContext context, TableModel table)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($@"        public int Add({table.TypeName} row)
+        {{");
+        foreach(var triggerModel in table.Triggers)
+        {
+            if (triggerModel.MethodName == "BeforeAdd")
+            {
+                sb.AppendLine($"            {triggerModel.Method.ContainingType.Name}.{triggerModel.MethodName}(database, row);");
+            }
+        }
+        sb.AppendLine(@$"            var id = _rowContainer.Add(in row);");
+        foreach(var triggerModel in table.Triggers)
+        {
+            if (triggerModel.MethodName == "AfterAdd")
+            {
+                sb.AppendLine($"            {triggerModel.Method.ContainingType.Name}.{triggerModel.MethodName}(database, Get(id));");
+            }
+        }
+
+        sb.AppendLine("            return id;");
+        sb.AppendLine("        }");
+            
+        return sb.ToString();
+    }
+    
+
     private static string GenerateIndexIterators(SourceProductionContext context, TableModel table)
     {
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
             if (!field.IsReference) continue;
-            sb.AppendLine($"        public IndexEnumerator SelectBy{field.CapitalizedName}(int value) => new IndexEnumerator(_rowContainer, IndexOn{field.CapitalizedName}[value]);");
+            sb.AppendLine($"        public IndexEnumerator SelectBy{field.CapitalizedName}(int value) => new IndexEnumerator(_rowContainer, _indexOn{field.CapitalizedName}[value]);");
         }
         return sb.ToString();
     }
@@ -150,7 +178,7 @@ using System.Runtime.CompilerServices;
         {
             if (field.IsReference)
             {
-                sb.AppendLine($"            IndexOn{field.CapitalizedName}.Clear();");
+                sb.AppendLine($"            _indexOn{field.CapitalizedName}.Clear();");
             }
         }
         return sb.ToString();
@@ -163,7 +191,8 @@ using System.Runtime.CompilerServices;
         {
             if (field.IsReference)
             {
-                sb.AppendLine($"        public readonly IntMap<IntSet> IndexOn{field.CapitalizedName} = new();");
+                sb.AppendLine($@"        internal readonly IntMap<IntSet> _indexOn{field.CapitalizedName} = new();
+        public IReadOnlyIntMap<IntSet> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};");
             }
         }
         return sb.ToString();

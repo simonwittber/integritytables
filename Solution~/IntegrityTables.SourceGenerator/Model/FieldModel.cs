@@ -73,6 +73,9 @@ public class FieldModel
     }
 
     public bool IsBlittable => IsBlittableType(FieldSymbol.Type);
+    public IMethodSymbol AfterUpdateMethod { get; set; }
+    public IMethodSymbol BeforeUpdateMethod { get; set; }
+
     public bool IsComputed;
     public bool IgnoreForEquality;
     public bool CreateIfMissing;

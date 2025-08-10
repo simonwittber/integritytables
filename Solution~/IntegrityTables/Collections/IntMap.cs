@@ -4,7 +4,17 @@ using System.Runtime.CompilerServices;
 
 namespace IntegrityTables;
 
-public class IntMap<T>
+public interface IReadOnlyIntMap<T>
+{
+    int Count { get; }
+    IntMap<T>.ValueEnumerator Values { get; }
+    bool ContainsKey(int id);
+    bool TryGetValue(int v, out T value);
+    IntSet.Enumerator GetEnumerator();
+    T this[int v] { get; }
+}
+
+public class IntMap<T> : IReadOnlyIntMap<T>
 {
     private const int PageBits = 10;
     private const int PageSize = 1 << PageBits;

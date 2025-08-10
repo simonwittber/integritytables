@@ -20,11 +20,7 @@ using IntegrityTables;
             sb.AppendLine($"namespace {table.NameSpace}");
             sb.AppendLine("{");
         }
-        var removeChecks = new StringBuilder();
-        table.Dependencies.ForEach(dep =>
-        {
-            removeChecks.AppendLine($"\n            if(database.{dep.TableModel.FacadeName}.IndexOn{dep.CapitalizedName}.ContainsKey(id)) throw new InvalidOperationException($\"Cannot remove {table.TypeName}Row with id {{id}} because it is referenced by {dep.TableModel.FacadeName}.{dep.Name}\");");
-        });
+        
         sb.AppendLine($@"
     // {DatabaseSourceGenerator.GenerationStamp()}
     public struct {table.TypeName}Row
@@ -40,9 +36,7 @@ using IntegrityTables;
             this.database = database;
         }}
 
-        public void Remove() {{{removeChecks}
-            container.Remove(index);
-        }}
+{GenerateRemoveMethod(context, table)}        
 
         private void AddToIndex(IntMap<IntSet> index, int value, int id)
         {{
@@ -67,6 +61,46 @@ using IntegrityTables;
         if (!string.IsNullOrEmpty(table.NameSpace)) sb.AppendLine("}");
         context.AddSource($"{model.FileName("Row", table.TypeName)}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
+    
+    private static string GenerateRemoveMethod(SourceProductionContext context, TableModel table)
+    {
+        var removeThrow = new StringBuilder();
+        table.Dependencies.ForEach(dep =>
+        {
+            removeThrow.AppendLine($"\n            if(database.{dep.TableModel.FacadeName}._indexOn{dep.CapitalizedName}.ContainsKey(id)) throw new InvalidOperationException($\"Cannot remove {table.TypeName}Row with id {{id}} because it is referenced by {dep.TableModel.FacadeName}.{dep.Name}\");");
+        });
+        var sb = new StringBuilder();
+        sb.AppendLine($@"        public void Remove()
+        {{
+{removeThrow}");
+        foreach(var triggerModel in table.Triggers)
+        {
+            if (triggerModel.MethodName == "BeforeRemove")
+            {
+                sb.AppendLine($"            {triggerModel.Method.ContainingType.Name}.{triggerModel.MethodName}(database, this);");
+            }
+        }
+        foreach(var triggerModel in table.Triggers)
+        {
+            if (triggerModel.MethodName == "AfterRemove")
+            {
+                sb.AppendLine($"            int _id = id;");
+                sb.AppendLine($"            var _database = database;");
+
+            }
+        }
+        sb.AppendLine(@$"            container.Remove(id);");
+        foreach(var triggerModel in table.Triggers)
+        {
+            if (triggerModel.MethodName == "AfterRemove")
+            {
+                sb.AppendLine($"            {triggerModel.Method.ContainingType.Name}.{triggerModel.MethodName}(_database, _id);");
+            }
+        }
+        sb.AppendLine("        }");
+            
+        return sb.ToString();
+    }
 
     private static string GenerateCollectionAccessors(SourceProductionContext context, TableModel table)
     {
@@ -86,6 +120,7 @@ using IntegrityTables;
         foreach (var field in table.Fields)
         {
             var checkReference = string.Empty;
+            
             if (field.IsReference)
             {
                 if (!string.IsNullOrEmpty(field.PropertyName))
@@ -94,39 +129,44 @@ using IntegrityTables;
                 }
                 if (field.IsNotNull)
                 {
-                    checkReference = $@"                var oldValue = container._{field.Name}[index];
-                if(value < 0) throw new InvalidOperationException($""Cannot set {field.Name} to null, it is a non-nullable reference."");
+                    checkReference = $@"                if(value < 0) throw new InvalidOperationException($""Cannot set {field.Name} to null, it is a non-nullable reference."");
                 if(oldValue == value) return;
                 if(!database.{field.ReferencedTableModel.FacadeName}.ContainsKey(value)) 
                     throw new InvalidOperationException($""Row with id {{value}} does not exist in {field.ReferencedTableModel.FacadeName}."");
                 else 
                 {{
-                    RemoveFromIndex(database.{table.FacadeName}.IndexOn{field.CapitalizedName}, oldValue, id);
-                    AddToIndex(database.{table.FacadeName}.IndexOn{field.CapitalizedName}, value, id);
+                    RemoveFromIndex(database.{table.FacadeName}._indexOn{field.CapitalizedName}, oldValue, id);
+                    AddToIndex(database.{table.FacadeName}._indexOn{field.CapitalizedName}, value, id);
                 }}";
                 }
                 else
                 {
-                    checkReference = $@"                var oldValue = container._{field.Name}[index];
-                if(oldValue == value) return;
+                    checkReference = $@"                if(oldValue == value) return;
                 if(value >= 0) {{
                     if(!database.{field.ReferencedTableModel.FacadeName}.ContainsKey(value)) 
                         throw new InvalidOperationException($""Row with id {{value}} does not exist in {field.ReferencedTableModel.FacadeName}."");
                     else 
                     {{
-                        AddToIndex(database.{table.FacadeName}.IndexOn{field.CapitalizedName}, value, id);
+                        AddToIndex(database.{table.FacadeName}._indexOn{field.CapitalizedName}, value, id);
                     }}
                 }}
-                if(oldValue >= 0) RemoveFromIndex(database.{table.FacadeName}.IndexOn{field.CapitalizedName}, oldValue, id);";
+                if(oldValue >= 0) RemoveFromIndex(database.{table.FacadeName}._indexOn{field.CapitalizedName}, oldValue, id);";
                 }
             }
+
             sb.AppendLine(@$"        public {field.QualifiedTypeName} {field.Name}
         {{
             get => container._{field.Name}[index];
             set 
             {{
-{checkReference}
-                container._{field.Name}[index] = value;
+                var oldValue = container._{field.Name}[index];
+{(string.IsNullOrEmpty(checkReference) ? "                if(oldValue == value) return;" : checkReference)}");
+            if(field.BeforeUpdateMethod != null)
+                sb.AppendLine(@$"                {field.TableModel.QualifiedTypeName}.{field.BeforeUpdateMethod.Name}(database, this, value);");
+            sb.AppendLine(@$"                container._{field.Name}[index] = value;");
+            if(field.AfterUpdateMethod != null)
+                sb.AppendLine(@$"                {field.TableModel.QualifiedTypeName}.{field.AfterUpdateMethod.Name}(database, this, oldValue);");
+            sb.AppendLine($@"
             }}
         }}");
         }

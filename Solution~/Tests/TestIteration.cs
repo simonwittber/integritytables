@@ -16,7 +16,6 @@ public class TestIteration
     {
         db = new Database();
         initialCapacity = db.EmployeeTable.Capacity;
-        using var context = db.CreateContext();
         departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
         employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
         db.EmployeeTable.Add(new Employee() { name = "John Doe", departmentId = departmentId});

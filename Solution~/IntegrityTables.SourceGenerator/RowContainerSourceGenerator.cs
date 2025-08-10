@@ -142,6 +142,10 @@ using System.Runtime.CompilerServices;
                 SetFlag(index, DELETED);
                 _freeSlots.Push(index);
             }}
+            _ids[index] = -1;
+            _facades[index] = default;
+            ClearFlag(index, ADDED);
+{RemoveArrays(context, table)}            
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
@@ -185,6 +189,16 @@ using System.Runtime.CompilerServices;
 ");
         if (!string.IsNullOrEmpty(table.NameSpace)) sb.AppendLine("}");
         context.AddSource($"{model.FileName("RowContainer", table.TypeName)}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+    
+    private static string RemoveArrays(SourceProductionContext context, TableModel table)
+    {
+        var sb = new StringBuilder();
+        foreach (var field in table.Fields)
+        {
+            sb.AppendLine($"            _{field.Name}[index] = default;");
+        }
+        return sb.ToString();
     }
 
     private static string ClearArrays(SourceProductionContext context, TableModel table)
