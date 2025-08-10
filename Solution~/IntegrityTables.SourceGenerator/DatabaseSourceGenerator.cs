@@ -118,7 +118,6 @@ using IntegrityTables;
 
         // {DatabaseSourceGenerator.GenerationStamp()}
         private void InitializeUniqueIndexes() {{
-{BuildInitializeUniqueIndexes(model)}
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}

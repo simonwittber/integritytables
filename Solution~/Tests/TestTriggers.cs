@@ -66,11 +66,20 @@ public class TestTriggers
         var row = db.EmployeeTable.Get(employeeId);
         row.name = "Z";
         // log will be BeforeAdd, BeforeNameUpdate, AfterNameUpdate, AfterAdd, BeforeNameUpdate, AfterNameUpdate
-
-        Assert.That(db.EmployeeLogTable.Get(4).name, Is.EqualTo("Jane Smith"));
-        Assert.That(db.EmployeeLogTable.Get(4).action, Is.EqualTo("BeforeNameUpdate"));
         Assert.That(db.EmployeeLogTable.Get(5).name, Is.EqualTo("Z"));
         Assert.That(db.EmployeeLogTable.Get(5).action, Is.EqualTo("AfterNameUpdate"));
+    }
+    
+    [Test]
+    public void TestBeforeUpdate()
+    {
+        var departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
+        var employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
+        var row = db.EmployeeTable.Get(employeeId);
+        row.name = "Z";
+        // log will be BeforeAdd, BeforeNameUpdate, AfterNameUpdate, AfterAdd, BeforeNameUpdate, AfterNameUpdate
+        Assert.That(db.EmployeeLogTable.Get(4).name, Is.EqualTo("Jane Smith"));
+        Assert.That(db.EmployeeLogTable.Get(4).action, Is.EqualTo("BeforeNameUpdate"));
     }
     
    

@@ -29,6 +29,18 @@ public class TestRemove
     }
     
     [Test]
+    public void TestRemoveAlsoRemovesIndex()
+    {
+        var row = db.EmployeeTable.Get(employeeId);
+        var dept = row.departmentId;
+        var id = row.id;
+        Assert.That(db.EmployeeTable.IndexOnDepartmentId[dept].Contains(id), Is.True);
+        row.Remove();
+        Assert.That(db.EmployeeTable.IndexOnDepartmentId[dept].Contains(id), Is.False);
+        Assert.That(db.EmployeeTable.Count, Is.EqualTo(1));
+    }
+    
+    [Test]
     public void TestRemoveCapacityIsReused()
     {
         // fill the table to capacity

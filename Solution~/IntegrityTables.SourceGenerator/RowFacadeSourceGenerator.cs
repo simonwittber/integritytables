@@ -89,6 +89,19 @@ using IntegrityTables;
 
             }
         }
+
+        foreach (var field in table.Fields)
+        {
+            if (field.IsReference)
+            {
+                sb.AppendLine($"            RemoveFromIndex(database.{table.FacadeName}._indexOn{field.CapitalizedName}, {field.Name}, id);");
+            }
+
+            if (field.IsUnique)
+            {
+                sb.AppendLine($"            database.{table.FacadeName}._uniqueIndexOn{field.CapitalizedName}.Remove({field.Name});");
+            }
+        }
         sb.AppendLine(@$"            container.Remove(id);");
         foreach(var triggerModel in table.Triggers)
         {
@@ -161,9 +174,13 @@ using IntegrityTables;
             {{
                 var oldValue = container._{field.Name}[index];
 {(string.IsNullOrEmpty(checkReference) ? "                if(oldValue == value) return;" : checkReference)}");
+            if(field.IsUnique)
+                sb.AppendLine(@$"                database.{field.TableModel.FacadeName}._uniqueIndexOn{field.CapitalizedName}.AssertDoesNotContain(value);");
             if(field.BeforeUpdateMethod != null)
                 sb.AppendLine(@$"                {field.TableModel.QualifiedTypeName}.{field.BeforeUpdateMethod.Name}(database, this, value);");
             sb.AppendLine(@$"                container._{field.Name}[index] = value;");
+            if(field.IsUnique)
+                sb.AppendLine(@$"                database.{field.TableModel.FacadeName}._uniqueIndexOn{field.CapitalizedName}.Add(value, index);");
             if(field.AfterUpdateMethod != null)
                 sb.AppendLine(@$"                {field.TableModel.QualifiedTypeName}.{field.AfterUpdateMethod.Name}(database, this, oldValue);");
             sb.AppendLine($@"

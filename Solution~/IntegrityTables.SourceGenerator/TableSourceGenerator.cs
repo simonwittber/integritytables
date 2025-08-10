@@ -35,6 +35,7 @@ using System.Runtime.CompilerServices;
         }}
 
 {GenerateIndexFields(context, table)}
+{GenerateUniqueIndexFields(context, table)}
         private readonly {table.TypeName}RowContainer _rowContainer;
 
         public int Count => _rowContainer.Count;
@@ -193,6 +194,29 @@ using System.Runtime.CompilerServices;
             {
                 sb.AppendLine($@"        internal readonly IntMap<IntSet> _indexOn{field.CapitalizedName} = new();
         public IReadOnlyIntMap<IntSet> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};");
+            }
+        }
+        return sb.ToString();
+    }
+    
+    private static string GenerateUniqueIndexFields(SourceProductionContext context, TableModel table)
+    {
+        var sb = new StringBuilder();
+        foreach (var field in table.Fields)
+        {
+            if (field.IsUnique)
+            {
+                sb.AppendLine($@"        internal readonly UniqueIndex<{field.QualifiedTypeName}> _uniqueIndexOn{field.CapitalizedName} = new();");
+                sb.AppendLine($@"        public bool TryGetBy{field.CapitalizedName} ({field.QualifiedTypeName} value, out {table.TypeName}Row row)
+        {{
+            if(_uniqueIndexOn{field.CapitalizedName}.TryGetValue(value, out var id))
+            {{
+                row = _rowContainer.Get(id);
+                return true;
+            }}
+            row = default;
+            return false;
+        }}");
             }
         }
         return sb.ToString();

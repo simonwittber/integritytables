@@ -87,11 +87,15 @@ public struct EmployeeLog
 [GenerateTable(typeof(Database))]
 public partial struct Department
 {
+    [Unique]
     public string name;
 }
 
 [GenerateTable(typeof(Database))]
 public partial struct Location
 {
+    [Unique("state-name")]
+    public string state;
+    [Unique("state-name")]
     public string name;
 }
