@@ -188,12 +188,6 @@ using IntegrityTables;
             return new Enumerator(_tables);
         }}
     }}
-    
-    //  {DatabaseSourceGenerator.GenerationStamp()}
-    public static class {model.DatabaseSymbol.Name}DatabaseScopeExtension {{
-{BuildContextExtensionMethods(model)}
-{BuildReverseContextExtensionMethods(model)}
-    }}
 
 ");
         if (!string.IsNullOrEmpty(model.NameSpace)) sb.AppendLine("}");

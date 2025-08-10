@@ -40,8 +40,6 @@ using IntegrityTables;
             this.database = database;
         }}
 
-        public void Save() => container.SetFlag(index, {table.TypeName}RowContainer.MODIFIED);
-
         public void Remove() {{{removeChecks}
             container.Remove(index);
         }}
@@ -62,13 +60,26 @@ using IntegrityTables;
         public int id => container._ids[index];
 
 {GeneratePropertyAccessors(context, table)}        
+{GenerateCollectionAccessors(context, table)}
     }}  
 
 ");
         if (!string.IsNullOrEmpty(table.NameSpace)) sb.AppendLine("}");
         context.AddSource($"{model.FileName("Row", table.TypeName)}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
-    
+
+    private static string GenerateCollectionAccessors(SourceProductionContext context, TableModel table)
+    {
+        var sb = new StringBuilder();
+        foreach (var dep in table.Dependencies)
+        {
+            if (string.IsNullOrEmpty(dep.CollectionName)) continue;
+            sb.AppendLine($@"        public {dep.TableModel.TypeName}Table.IndexEnumerator {dep.CollectionName} => database.{dep.TableModel.FacadeName}.SelectBy{dep.CapitalizedName}(id);");
+        }
+
+        return sb.ToString();
+    }
+
     private static string GeneratePropertyAccessors(SourceProductionContext context, TableModel table)
     {
         var sb = new StringBuilder();
@@ -77,6 +88,10 @@ using IntegrityTables;
             var checkReference = string.Empty;
             if (field.IsReference)
             {
+                if (!string.IsNullOrEmpty(field.PropertyName))
+                {
+                    sb.AppendLine($@"        public {field.ReferencedTableModel.TypeName}Row {field.PropertyName} => database.{field.ReferencedTableModel.FacadeName}[container._{field.Name}[index]];");
+                }
                 if (field.IsNotNull)
                 {
                     checkReference = $@"                var oldValue = container._{field.Name}[index];

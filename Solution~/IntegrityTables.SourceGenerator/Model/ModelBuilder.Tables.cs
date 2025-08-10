@@ -508,6 +508,22 @@ public static partial class ModelBuilder
                             {
                                 fieldModel.IsNotNull = true; // RequiredReference means it cannot be null
                             }
+                            if (attribute.AttributeClass?.ToDisplayString() == $"{Namespace}.PropertyNameAttribute")
+                            {
+                                // get PropertyName from constructor argument
+                                if (attribute.ConstructorArguments.Length > 0 && attribute.ConstructorArguments[0].Value is string propertyName)
+                                {
+                                    fieldModel.PropertyName = propertyName;
+                                }
+                            }
+                            if (attribute.AttributeClass?.ToDisplayString() == $"{Namespace}.CollectionNameAttribute")
+                            {
+                                // get CollectionName from constructor argument
+                                if (attribute.ConstructorArguments.Length > 0 && attribute.ConstructorArguments[0].Value is string propertyName)
+                                {
+                                    fieldModel.CollectionName = propertyName;
+                                }
+                            }
                         }
                         
                         if(tableModel.IsComponent && fieldModel.ReferencedTableModel.IsComponent)

@@ -24,15 +24,6 @@ public static partial class ModelBuilder
         //see if databaseClass has [GenerateDatabase] attribute with GenerateForUnity = true
         var generateDatabaseAttribute = databaseClass.GetAttributes()
             .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == $"{Namespace}.GenerateDatabaseAttribute");
-        if (generateDatabaseAttribute != null)
-        {
-            var generateForUnityArgument = generateDatabaseAttribute.NamedArguments
-                .FirstOrDefault(a => a.Key == "GenerateForUnity");
-            if (generateForUnityArgument.Value is {Kind: TypedConstantKind.Primitive, Value: bool and true})
-            {
-                model.GenerateForUnity = true;
-            }
-        }
 
         var tableStructs = FilterForForDatabaseType(allTableStructs, databaseClass, $"{Namespace}.{TableAttributeName}").ToImmutableArray();
         foreach (var tableStruct in tableStructs)

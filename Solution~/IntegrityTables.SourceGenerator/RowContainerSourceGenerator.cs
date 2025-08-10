@@ -84,6 +84,7 @@ using System.Runtime.CompilerServices;
                 if (_count == _flags.Length) Resize(_count * 2);
                 slot = _count++;
             }}
+            _ids[slot] = slot;
             var facade = _facades[slot] = new {table.TypeName}Row(slot, this, _database);
             try {{
 {AssignFacadeFields(context, table)}
@@ -91,7 +92,6 @@ using System.Runtime.CompilerServices;
                 _count--;
                 throw;
             }}
-            _ids[slot] = slot;
             _flags[slot] = ADDED;
             return slot;
         }}

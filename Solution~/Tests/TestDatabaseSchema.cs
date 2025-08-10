@@ -11,8 +11,9 @@ public partial class Database
 [GenerateTable(typeof(Database))]
 public partial struct Employee
 {
-    [RequiredReference]
+    [RequiredReference, PropertyName(nameof(Department)), CollectionName("Employees")]
     public Reference<Department> departmentId;
+    [PropertyName(nameof(Location))]
     public Reference<Location> locationId;
     public string name;
     public int age;

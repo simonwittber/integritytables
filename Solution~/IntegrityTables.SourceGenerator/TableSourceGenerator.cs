@@ -64,6 +64,8 @@ using System.Runtime.CompilerServices;
 
         public {table.TypeName}Row this[int id] => _rowContainer.Get(id);
 
+{GenerateIndexIterators(context, table)}
+
         public {table.TypeName}RowContainer.Enumerator GetEnumerator() => _rowContainer.GetEnumerator();
         
         public Enumerator Rows => new Enumerator(_rowContainer);
@@ -94,11 +96,51 @@ using System.Runtime.CompilerServices;
             }}
         }}
 
+        public struct IndexEnumerator {{
+            public ref {table.TypeName}Row Current => ref container.Get(index);
+            int index;
+            {table.TypeName}RowContainer container;
+            IntSet ids;
+            IntSet.Enumerator idsEnumerator;
+
+            public IndexEnumerator GetEnumerator() => this;
+
+            public IndexEnumerator({table.TypeName}RowContainer container, IntSet ids)
+            {{
+                this.container = container;
+                this.ids = ids;
+                this.idsEnumerator = ids.GetEnumerator();
+                this.index = -1;
+            }}
+
+            public bool MoveNext()
+            {{
+                while (idsEnumerator.MoveNext())
+                {{
+                    index = idsEnumerator.Current;
+                    return true;
+                }}
+                return false;
+            }}
+
+        }}
+
     }}
 
 ");
         if (!string.IsNullOrEmpty(table.NameSpace)) sb.AppendLine("}");
         context.AddSource($"{model.FileName("Table", table.TypeName)}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    private static string GenerateIndexIterators(SourceProductionContext context, TableModel table)
+    {
+        var sb = new StringBuilder();
+        foreach (var field in table.Fields)
+        {
+            if (!field.IsReference) continue;
+            sb.AppendLine($"        public IndexEnumerator SelectBy{field.CapitalizedName}(int value) => new IndexEnumerator(_rowContainer, IndexOn{field.CapitalizedName}[value]);");
+        }
+        return sb.ToString();
     }
 
     private static string ClearIndexes(TableModel table)
