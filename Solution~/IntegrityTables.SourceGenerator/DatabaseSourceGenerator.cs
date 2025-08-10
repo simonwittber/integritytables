@@ -40,20 +40,14 @@ public partial class DatabaseSourceGenerator : IIncrementalGenerator
         var model = ModelBuilder.Build(context, (INamedTypeSymbol) databaseClass, uniqueTableStructs, uniqueServiceClasses, uniqueSystemClasses);
         // DbmlBuilder.Build(context, model);
         // MermaidBuilder.Build(context, model);
-        TableSourceGenerator.GenerateCode(context, model);
+        // TableSourceGenerator.GenerateCode(context, model);
         RowContainerSourceGenerator.GenerateCode(context, model);
-        TableIndexSourceGenerator.GenerateCode(context, model);
-        ServiceSourceGenerator.GenerateCode(context, model);
+        // TableIndexSourceGenerator.GenerateCode(context, model);
+        // ServiceSourceGenerator.GenerateCode(context, model);
         // PersistenceSourceGenerator.GenerateCode(context, model);
-        ViewModelSourceGenerator.GenerateCode(context, model);
-        SystemSourceGenerator.GenerateCode(context, model);
+        // ViewModelSourceGenerator.GenerateCode(context, model);
+        // SystemSourceGenerator.GenerateCode(context, model);
         // EntityExtensionsGenerator.GenerateCode(context, model);
-        if (model.GenerateForUnity)
-        {
-            ScriptableObjectSourceGenerator.GenerateScriptableDatabaseCode(context, model);
-            ScriptableObjectSourceGenerator.GenerateScriptableViewCode(context, model);
-            ScriptableObjectSourceGenerator.GenerateScriptableRowCode(context, model);
-        }
         
         var sb = new StringBuilder();
 
@@ -120,7 +114,7 @@ using IntegrityTables;
 {BuildInitializeTables(model)}
 
 {BuildInitializeIndexes(model)}
-            _tables = new ITable[] {{ {string.Join(", ", model.Tables.Select(i => i.FieldName))} }};
+            _tables = new ITable[] {{ {string.Join(", ", model.Tables.Select(i => i.FacadeName))} }};
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
@@ -130,20 +124,12 @@ using IntegrityTables;
 
         // {DatabaseSourceGenerator.GenerationStamp()}
         private void InitializeTriggers() {{
-{BuildInitializeTriggers(model)}
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
         private void InitializeConstraints() {{
-{BuildInitializeConstraints(model)}
         }}
 #endregion
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public ChangeSet NewChangeSet()
-        {{
-            return new ChangeSet(_tables);
-        }}
 
 #region validation
         // {DatabaseSourceGenerator.GenerationStamp()}
@@ -215,7 +201,7 @@ using IntegrityTables;
         context.AddSource($"{model.FileName("Database", "")}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
 
         // This outputs different partial class files.
-        BuildReferentialIntegrityMethods(context, model);
+        // BuildReferentialIntegrityMethods(context, model);
     }
 
     public static string GenerationStamp([CallerFilePath] string filePath = "", [CallerLineNumber] int lineNumber = 0)
@@ -229,7 +215,7 @@ using IntegrityTables;
         var sb = new StringBuilder();
         foreach (var table in model.Tables)
         {
-            sb.AppendLine($@"            Persistence.LoadTable<{table.QualifiedTypeName}>(this.{table.FieldName});");
+            sb.AppendLine($@"            //Persistence.LoadTable<{table.QualifiedTypeName}>(this.{table.FieldName});");
         }
 
         return sb.ToString();
@@ -240,7 +226,7 @@ using IntegrityTables;
         var sb = new StringBuilder();
         foreach (var table in model.Tables)
         {
-            sb.AppendLine($@"            Persistence.SaveTable<{table.QualifiedTypeName}>(this.{table.FieldName});");
+            sb.AppendLine($@"            //Persistence.SaveTable<{table.QualifiedTypeName}>(this.{table.FieldName});");
         }
 
         return sb.ToString();
@@ -330,7 +316,7 @@ using IntegrityTables;
 
         string BuildInitializeTable(TableModel table)
         {
-            return $"            this.{table.FieldName} = new Table<{table.QualifiedTypeName}>(rowContainer:new {table.TypeName}RowContainer({table.Capacity})) {{ Metadata = new {table.QualifiedTypeName}Metadata() }};";
+            return $"            this.{table.FacadeName} = new {table.TypeName}Table(this);";
         }
     }
 
@@ -340,7 +326,7 @@ using IntegrityTables;
 
         string BuildInitializeTable(TableModel table)
         {
-            return $"            this.{table.FacadeName}Index = new {table.QualifiedTypeName}TableIndex({table.FieldName}, {table.Capacity});";
+            return $"            //this.{table.FacadeName}Index = new {table.QualifiedTypeName}TableIndex({table.FieldName}, {table.Capacity});";
         }
     }
 
@@ -399,12 +385,12 @@ using IntegrityTables;
 
     private string BuildTableProperties(DatabaseModel model)
     {
-        return string.Join("\n", model.Tables.Select(t => $"        private Table<{t.QualifiedTypeName}> {t.FieldName} {{ get; set; }}"));
+        return string.Join("\n", model.Tables.Select(t => $"        public {t.TypeName}Table {t.FacadeName} {{ get; private set; }}"));
     }
 
     private string BuildIndexProperties(DatabaseModel model)
     {
-        return string.Join("\n", model.Tables.Select(t => $"        public {t.QualifiedTypeName}TableIndex {t.FacadeName}Index {{ get; private set; }}"));
+        return string.Join("\n", model.Tables.Select(t => $"        //public {t.QualifiedTypeName}TableIndex {t.FacadeName}Index {{ get; private set; }}"));
     }
 
     private string BuildInitializeTriggers(DatabaseModel model)
@@ -414,8 +400,7 @@ using IntegrityTables;
         {
             lines.Add($"            // {DatabaseSourceGenerator.GenerationStamp()}");
             lines.Add($"            // Initialize referential validation callbacks for {tableModel.TypeName}");
-            lines.Add($"            {tableModel.FacadeName}.ValidateForAdd = CheckReferentialIntegrityOn{tableModel.TypeName};");
-            lines.Add($"            {tableModel.FacadeName}.ValidateForUpdate = CheckReferentialIntegrityOnModifiedFieldsOn{tableModel.TypeName};");
+            lines.Add($"            {tableModel.FacadeName}.ValidateReferentialIntegrity = CheckReferentialIntegrityOn{tableModel.TypeName};");
             lines.Add($"            {tableModel.FacadeName}.ExecuteCascadingRemove = ExecuteCascadingRemove{tableModel.TypeName}Row;");
             var tf = tableModel.FieldName;  // e.g. "OrderTable"
             
@@ -549,15 +534,17 @@ using IntegrityTables;
                 if (!field.IsReference) continue;
                 addCheck = true;
                 var referencedTableModel = field.ReferencedTableModel;
-                var errorMessage = $"{tableName}.{field.FieldSymbol.Name} ({{row.data.{field.FieldSymbol.Name}}}) is not a valid reference to {referencedTableModel.QualifiedTypeName}";
-                fieldChecks.AppendLine($@"                if(row.data.{field.FieldSymbol.Name} != 0 && !{referencedTableModel.FieldName}.ContainsKey(row.data.{field.FieldSymbol.Name})) 
-                    Warnings.Warn($""{errorMessage}"");");
+                var errorMessage = $"{tableName}.{field.FieldSymbol.Name} ({{row.{field.FieldSymbol.Name}}}) is not a valid reference to {referencedTableModel.QualifiedTypeName}";
+                if(field.IsNotNull)
+                    fieldChecks.AppendLine($@"                if(!{referencedTableModel.FacadeName}.ContainsKey(row.{field.FieldSymbol.Name})) Warnings.Warn($""{errorMessage}"");");
+                else
+                    fieldChecks.AppendLine($@"                if(row.{field.FieldSymbol.Name} >= 0 && !{referencedTableModel.FacadeName}.ContainsKey(row.{field.FieldSymbol.Name})) Warnings.Warn($""{errorMessage}"");");
             }
 
             if (addCheck)
-                sb.AppendLine($@"            foreach (var id in this.{table.FieldName}) 
+                sb.AppendLine($@"            foreach (var id in this.{table.FacadeName}) 
             {{
-                var row = this.{table.FieldName}.Get(id);
+                var row = this.{table.FacadeName}.Get(id);
 {fieldChecks}                    
             }}");
         }

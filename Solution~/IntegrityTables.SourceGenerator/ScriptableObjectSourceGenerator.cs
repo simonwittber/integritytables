@@ -214,11 +214,7 @@ namespace {i.NameSpace} {{
         public override ITableMetadata Metadata => new {i.TypeName}TableMetadata();
 
         public override void Clear() {{
-            using(var changeSet = database.NewChangeSet())
-            {{
-                database.Clear<{i.QualifiedTypeName}>();
-                changeSet.Commit();
-            }}
+            database.Clear<{i.QualifiedTypeName}>();
         }}
 
         public override List<(string label, int id)> LookupTable(System.Type type) {{

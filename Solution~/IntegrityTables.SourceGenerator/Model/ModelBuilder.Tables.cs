@@ -23,16 +23,6 @@ public static partial class ModelBuilder
         
         var tableAttributes = tableStruct.GetAttributes();
         var tableAttribute = tableAttributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == $"{Namespace}.{TableAttributeName}");
-        // make sure table also as [Serializable] attribute
-        var serializableAttribute = tableAttributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "System.SerializableAttribute");
-        if (serializableAttribute == null)
-        {
-            context.ReportDiagnostic(Diagnostic.Create(
-                BrokenConvention,
-                tableStruct.Locations.FirstOrDefault(),
-                tableStruct.Name, "Must also be marked with [Serializable] attribute"
-            ));
-        }
         
         // get GroupName from constructor argument
         var groupNameArgument = tableAttribute?.NamedArguments.FirstOrDefault(a => a.Key == "GroupName");
@@ -489,7 +479,46 @@ public static partial class ModelBuilder
                 TableModel = tableModel,
                 FieldSymbol = field
             };
+
+            // Check if field is a Reference<T> type
+            if (field.Type is INamedTypeSymbol namedType)
+            {
+                // Check for Reference<T>
+                if (namedType.IsGenericType && namedType.ConstructedFrom.ToDisplayString() == "IntegrityTables.Reference<T>")
+                {
+                    var referencedType = namedType.TypeArguments[0] as INamedTypeSymbol;
+                    if (referencedType != null)
+                    {
+                        if (!model.TableMap.TryGetValue(referencedType, out fieldModel.ReferencedTableModel))
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(
+                                BrokenConvention,
+                                field.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax().GetLocation(),
+                                field.Name, $"Cannot find {referencedType.Name}, is it marked with [GenerateTable]?"
+                            ));
+                            continue;
+                        }
+                        
+                        fieldModel.IsReference = true;
+
+                        // does field have [RequiredReference] attribute?
+                        foreach (var attribute in field.GetAttributes())
+                        {
+                            if (attribute.AttributeClass?.ToDisplayString() == $"{Namespace}.RequiredReferenceAttribute")
+                            {
+                                fieldModel.IsNotNull = true; // RequiredReference means it cannot be null
+                            }
+                        }
+                        
+                        if(tableModel.IsComponent && fieldModel.ReferencedTableModel.IsComponent)
+                        {
+                            fieldModel.IsComponentReference = true;
+                        }
+                    }
+                }
                 
+            }
+            
             foreach (var attribute in field.GetAttributes())
             {
                 if(attribute.AttributeClass?.ToDisplayString() == $"{Namespace}.HotFieldAttribute")

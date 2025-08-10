@@ -25,13 +25,9 @@ using IntegrityTables;
 
             sb.AppendLine($"    public partial class {model.DatabaseSymbol.Name} {{");
             sb.AppendLine();
-            sb.AppendLine($"        public Table<{table.QualifiedTypeName}> {table.TypeName}Table => this.{table.FieldName};");
+            sb.AppendLine($"        public {table.TypeName}Table {table.TypeName}Table => this.{table.FieldName};");
             var tableTypeName = table.QualifiedTypeName;
             var tableFieldName = table.FieldName;
-            sb.AppendLine();
-            BuildUpdateMethod(sb, table);
-            sb.AppendLine();
-            BuildRemoveMethod(sb, table);
             sb.AppendLine();
             BuildAddMethod(sb, table);
             sb.AppendLine();
@@ -51,8 +47,7 @@ using IntegrityTables;
         var tableTypeName = table.QualifiedTypeName;
         sb.AppendLine($@"        // {DatabaseSourceGenerator.GenerationStamp()}
         private void ExecuteCascadingRemove{table.TypeName}Row(int id, CascadeOperation cascade) {{
-            var row = this.{tableFieldName}.Get(id);
-            var data = row.data;");
+            var row = this.{tableFieldName}.Get(id);");
         foreach (var dependentField in table.Dependencies)
         {
             var dependentTableFieldName = dependentField.TableModel.FieldName;
@@ -62,11 +57,11 @@ using IntegrityTables;
             for(var i = {dependentTableFieldName}.Count - 1; i >= 0; i--)
             {{
                 var xrow = {dependentTableFieldName}[i];
-                if(xrow.data.{dependentField.Name} != id) continue;
+                if(xrow.{dependentField.Name} != id) continue;
                 switch(cascade) 
                 {{
                     case CascadeOperation.None:
-                        {table.FieldName}.RaiseException({errorMessage});
+                        throw new InvalidOperationException({errorMessage});
                         break;
                     case CascadeOperation.Delete:
                         {dependentTableFieldName}.Remove(xrow.id, cascade);
@@ -81,35 +76,11 @@ using IntegrityTables;
                 if (fieldModel.IsNotNull)
                     return $"                        throw new InvalidOperationException(\"{fieldModel.Name} is marked NotNull\");";
                 return @$"                        var copy = {fieldModel.TableModel.FacadeName}.Get(xrow.id); 
-                        copy.data.{fieldModel.Name} = 0; 
-                        {fieldModel.TableModel.FacadeName}.Update(ref copy); 
+                        copy.{fieldModel.Name} = 0; 
                         break;";
             }
         }
         sb.AppendLine("        }");
-    }
-
-    private static void BuildUpdateMethod(StringBuilder sb, TableModel table)
-    {
-        var tableFieldName = table.FieldName;
-        var refCheckBuilder = new StringBuilder();
-        foreach (var refField in table.Fields)
-        {
-            if (!refField.IsReference) continue;
-            if (refField.IsImmutable) continue;
-            var refTableFieldName = refField.ReferencedTableModel.FieldName;
-            var refFieldName = refField.FieldSymbol.Name;
-            var errorMessage = $"{refFieldName} is not a valid reference to {refTableFieldName}";
-            refCheckBuilder.AppendLine($@"            if(storedData.{refFieldName} != data.{refFieldName} && data.{refFieldName} != 0 && !{refTableFieldName}.ContainsKey(data.{refFieldName})) 
-                {tableFieldName}.RaiseException(""{errorMessage}"");");
-        }
-
-        var tableTypeName = table.QualifiedTypeName;
-        sb.AppendLine($@"        // {DatabaseSourceGenerator.GenerationStamp()}
-        private void CheckReferentialIntegrityOnModifiedFieldsOn{table.TypeName}({tableTypeName} data, {tableTypeName} storedData) {{
-{refCheckBuilder}
-        }}");
-        sb.AppendLine();
     }
 
     private static void BuildAddMethod(StringBuilder sb, TableModel table)
@@ -120,15 +91,15 @@ using IntegrityTables;
         {
             if (!refField.IsReference) continue;
             var refTableFieldName = refField.ReferencedTableModel.FieldName;
-            var errorMessage = $"{refField.Name} is not a valid reference to {refTableFieldName} ({{data.{refField.Name}}})";
-            refCheckBuilder.AppendLine($@"            if(data.{refField.Name} != 0 && !{refTableFieldName}.ContainsKey(data.{refField.Name})) 
-                {tableFieldName}.RaiseException($""{errorMessage}"");");
+            var errorMessage = $"{refField.Name} is not a valid reference to {refTableFieldName} ({{row.{refField.Name}}})";
+            refCheckBuilder.AppendLine($@"            if(row.{refField.Name} >= 0 && !{refTableFieldName}.ContainsKey(row.{refField.Name})) 
+                throw new InvalidOperationException($""{errorMessage}"");");
         }
 
         sb.AppendLine();
         var tableTypeName = table.QualifiedTypeName;
         sb.AppendLine($@"        // {DatabaseSourceGenerator.GenerationStamp()}
-        private void CheckReferentialIntegrityOn{table.TypeName}({tableTypeName} data) {{
+        private void CheckReferentialIntegrityOn{table.TypeName}({tableTypeName}Row row) {{
 {refCheckBuilder}
         }}");
     }

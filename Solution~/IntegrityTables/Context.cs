@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace IntegrityTables;
 
-public sealed class Context<T> : IDisposable, IAsyncDisposable where T : class
+public sealed class Context<T> : IDisposable, IAsyncDisposable
 {
     private static readonly AsyncLocal<T?> _current = new AsyncLocal<T?>();
     
@@ -24,7 +24,7 @@ public sealed class Context<T> : IDisposable, IAsyncDisposable where T : class
     {
         if(context == null) 
             throw new ArgumentNullException(nameof(context), "context cannot be null.");
-        _previous      = _current?.Value;
+        _previous      = _current.Value;
         _current!.Value = context;
     }
 
