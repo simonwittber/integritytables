@@ -40,7 +40,6 @@ using System.Runtime.CompilerServices;
         internal const byte MODIFIED = 0b10;
         internal const byte ADDED = 0b10;
 
-        public event Action<int, TableOperation> OnRowModified;
         public int Version => _version;
 
         internal Stack<int> _freeSlots = new Stack<int>();

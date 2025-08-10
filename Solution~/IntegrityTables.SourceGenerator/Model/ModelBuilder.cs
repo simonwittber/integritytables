@@ -18,7 +18,6 @@ public static partial class ModelBuilder
         {
             DatabaseSymbol = databaseClass,
             Tables = [],
-            OnTablesCreatedMethods = []
         };
         
         //see if databaseClass has [GenerateDatabase] attribute with GenerateForUnity = true
@@ -32,14 +31,6 @@ public static partial class ModelBuilder
             model.Tables.Add(tableModel);
         }
         
-        var serviceClasses = FilterForForDatabaseType(allServiceClasses, databaseClass, $"{Namespace}.{ServiceAttributeName}").ToImmutableArray();
-        foreach (var serviceClass in serviceClasses)
-        {
-            var serviceModel = BuildServiceModel(context, model, serviceClass);
-            if(serviceModel != null)
-                model.ServiceModels.Add(serviceModel);
-        }
-
         var systemClasses = FilterForForDatabaseType(allSystemClasses, databaseClass, $"{Namespace}.{SystemAttributeName}").ToImmutableArray();
         foreach (var systemClass in systemClasses)
         {
@@ -48,7 +39,6 @@ public static partial class ModelBuilder
                 model.SystemModels.Add(systemModel);
         }
         
-        CollectOnTablesCreatedMethods(context, databaseClass, model);
         BuildTableFieldModels(context, model);
         BuildValidatorModels(context, model);
         BuildTriggers(context, model);
@@ -58,19 +48,6 @@ public static partial class ModelBuilder
         BuildGroups(model);
         ValidateTableModels(context, model);
         return model;
-    }
-
-    private static ServiceModel BuildServiceModel(SourceProductionContext context, DatabaseModel model, INamedTypeSymbol serviceClass)
-    {
-        var serviceModel = new ServiceModel()
-        {
-            DatabaseModel = model,
-            ServiceSymbol = serviceClass
-        };
-        var attributes = serviceClass.GetAttributes();
-        attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == $"{Namespace}.{ServiceAttributeName}");
-        
-        return serviceModel;
     }
 
     private static SystemModel BuildSystemModel(SourceProductionContext context, DatabaseModel model, INamedTypeSymbol systemClass)
@@ -143,38 +120,6 @@ public static partial class ModelBuilder
     private static void BuildGroups(DatabaseModel model)
     {
         model.Groups = model.Tables.ToLookup(tableModel => tableModel.GroupName??"Global");
-    }
-
-    private static void CollectOnTablesCreatedMethods(SourceProductionContext context, INamedTypeSymbol databaseClass, DatabaseModel model)
-    {
-        // collect OnTablesCreated decorated methods
-        var onTablesCreatedMethods = databaseClass.GetMembers()
-            .Where(m => m.Kind == SymbolKind.Method)
-            .Select(m => (method: (IMethodSymbol) m, attribute: m.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == $"{Namespace}.OnTablesCreatedAttribute")))
-            .Where(ma => ma.attribute != null);
-
-        foreach (var (method, _) in onTablesCreatedMethods)
-        {
-            if(method.Parameters.Length > 0) 
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    BrokenConvention,
-                    method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax().GetLocation(),
-                    method.Name, "must not have parameters"
-                ));
-                continue;
-            }
-            if (method.ReturnType.Name != "Void")
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    BrokenConvention,
-                    method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax().GetLocation(),
-                    method.Name, "must return void"
-                ));
-                continue;
-            }
-            model.OnTablesCreatedMethods.Add(method.Name);
-        }
     }
 
     private static void BuildDependencyMap(DatabaseModel model)

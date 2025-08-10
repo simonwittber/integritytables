@@ -39,14 +39,9 @@ public partial class DatabaseSourceGenerator : IIncrementalGenerator
         var model = ModelBuilder.Build(context, (INamedTypeSymbol) databaseClass, uniqueTableStructs, uniqueServiceClasses, uniqueSystemClasses);
         // DbmlBuilder.Build(context, model);
         // MermaidBuilder.Build(context, model);
-        // TableSourceGenerator.GenerateCode(context, model);
         RowContainerSourceGenerator.GenerateCode(context, model);
-        // TableIndexSourceGenerator.GenerateCode(context, model);
-        // ServiceSourceGenerator.GenerateCode(context, model);
         // PersistenceSourceGenerator.GenerateCode(context, model);
-        // ViewModelSourceGenerator.GenerateCode(context, model);
         // SystemSourceGenerator.GenerateCode(context, model);
-        // EntityExtensionsGenerator.GenerateCode(context, model);
         
         var sb = new StringBuilder();
 
@@ -68,16 +63,12 @@ using IntegrityTables;
     // {DatabaseSourceGenerator.GenerationStamp()}
     public partial class {model.DatabaseSymbol.Name} : IDatabase
     {{
-
         public IPersistence Persistence {{ get; set; }}
 
 #region Tables
     // {DatabaseSourceGenerator.GenerationStamp()}
 {BuildTableProperties(model)}
-    // {DatabaseSourceGenerator.GenerationStamp()}
-{BuildIndexProperties(model)}
 #endregion
-
        
         private ITable[] _tables;
         public ITable[] Tables => _tables;
@@ -101,9 +92,6 @@ using IntegrityTables;
         public {model.DatabaseSymbol.Name}()
         {{
             InitializeTables();
-            InitializeTriggers();
-            InitializeUniqueIndexes();
-            InitializeConstraints();
 {BuildDefaultDataAndOnLoadTablesMethodCalls(model)}
         }}
 
@@ -112,7 +100,6 @@ using IntegrityTables;
         private void InitializeTables() {{
 {BuildInitializeTables(model)}
 
-{BuildInitializeIndexes(model)}
             _tables = new ITable[] {{ {string.Join(", ", model.Tables.Select(i => i.FacadeName))} }};
         }}
 
@@ -268,27 +255,6 @@ using IntegrityTables;
         return sb.ToString();
     }
 
-    private string GenerateLoadDefaultDataMethod(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        if (model.Tables.Any(i => i.DefaultDataMethods.Count > 0))
-        {
-            sb.AppendLine(@"            var type = typeof(T);
-            switch(typeof(T)) {");
-            foreach (var table in model.Tables)
-            {
-                if (table.DefaultDataMethods.Count > 0)
-                    sb.AppendLine(@$"               case var _ when type == typeof({table.QualifiedTypeName}): 
-                foreach(var row in {table.FieldName}.GetDefaultData()) {table.FacadeName}.Add(row);
-                break;");
-            }
-
-            sb.AppendLine("            }");
-        }
-
-        return sb.ToString();
-    }
-
     private string BuildInitializeTables(DatabaseModel model)
     {
         return string.Join("\n", model.Tables.Select(BuildInitializeTable));
@@ -299,77 +265,9 @@ using IntegrityTables;
         }
     }
 
-    private string BuildInitializeIndexes(DatabaseModel model)
-    {
-        return string.Join("\n", model.Tables.Select(BuildInitializeTable));
-
-        string BuildInitializeTable(TableModel table)
-        {
-            return $"            //this.{table.FacadeName}Index = new {table.QualifiedTypeName}TableIndex({table.FieldName}, {table.Capacity});";
-        }
-    }
-
-    private string BuildInitializeUniqueIndexes(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        foreach (var table in model.Tables)
-        {
-            foreach (var indexName in table.UniqueIndexes.Keys)
-            {
-                var fields = table.UniqueIndexes[indexName];
-                var fieldNames = fields.Select(f => $"row.data.{f.FieldSymbol.Name}");
-                var fieldTypes = string.Join(",", fields.Select(f => $"{f.FieldSymbol.Type.ToDisplayString()}"));
-                var keyType = $"ValueTuple<{fieldTypes}>";
-
-                var getFieldsAction = $"(in Row<{table.QualifiedTypeName}> row) => new {keyType}({string.Join(",", fieldNames)})";
-                sb.AppendLine($"            this.{table.FieldName}.AddUniqueIndex<{keyType}>(\"{indexName}\", {getFieldsAction});");
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private string BuildInitializeConstraints(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        foreach (var table in model.Tables)
-        {
-            foreach (var field in table.Fields)
-            {
-                if (field.IsNotNull)
-                    sb.AppendLine($"            this.{table.FieldName}.AddConstraint((in Row<{table.QualifiedTypeName}> row) => row.data.{field.Name} != 0, \"{field.Name} is null\");");
-            }
-
-            foreach (var constraintMethod in table.ConstraintMethods)
-            {
-                sb.AppendLine($"            this.{table.FieldName}.AddConstraint({table.QualifiedTypeName}.{constraintMethod}, \"Check: {constraintMethod}\");");
-            }
-        }
-
-        foreach (var manyToManyModel in model.ManyToManyModels)
-        {
-            if (manyToManyModel.IsSymmetricJunction)
-            {
-                var table = manyToManyModel.TableModel;
-                var fields = manyToManyModel.Fields;
-                //Add a constraint so that field 0 is always the smaller ID
-                sb.AppendLine($"            this.{table.FieldName}.AddConstraint((in Row<{table.QualifiedTypeName}> row) => row.data.{fields[0].Name} > row.data.{fields[1].Name}, \"{fields[1].Name} must be less than {fields[0].Name}\");");
-                //Add a trigger to swap the fields if they are not in order
-                sb.AppendLine($"            this.{table.FieldName}.BeforeAdd += (ref Row<{table.QualifiedTypeName}> row) => {{ if(row.data.{fields[0].Name} < row.data.{fields[1].Name}) (row.data.{fields[0].Name}, row.data.{fields[1].Name}) = (row.data.{fields[1].Name}, row.data.{fields[0].Name}); }};");
-            }
-        }
-
-        return sb.ToString();
-    }
-
     private string BuildTableProperties(DatabaseModel model)
     {
         return string.Join("\n", model.Tables.Select(t => $"        public {t.TypeName}Table {t.FacadeName} {{ get; private set; }}"));
-    }
-
-    private string BuildIndexProperties(DatabaseModel model)
-    {
-        return string.Join("\n", model.Tables.Select(t => $"        //public {t.QualifiedTypeName}TableIndex {t.FacadeName}Index {{ get; private set; }}"));
     }
 
     private string GenerateValidatorMethod(DatabaseModel model)
