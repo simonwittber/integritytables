@@ -16,8 +16,8 @@ public class TestTriggers
     [Test]
     public void TestBeforeAdd()
     {
-        var departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
-        var employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
+        var departmentId = db.DepartmentTable.Add(name : "HR");
+        var employeeId = db.EmployeeTable.Add(name :"Jane Smith", departmentId :departmentId);
         var log = db.EmployeeLogTable.Get(0);
         Assert.That(log.name, Is.EqualTo("Jane Smith"));
         Assert.That(log.action, Is.EqualTo("BeforeAdd"));
@@ -26,8 +26,8 @@ public class TestTriggers
     [Test]
     public void TestAfterAdd()
     {
-        var departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
-        var employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
+        var departmentId = db.DepartmentTable.Add(name : "HR");
+        var employeeId = db.EmployeeTable.Add(name :"Jane Smith", departmentId :departmentId);
         // log will be BeforeAdd, BeforeNameUpdate, AfterNameUpdate, AfterAdd
         var log = db.EmployeeLogTable.Get(3);
         Assert.That(log.name, Is.EqualTo("Jane Smith"));
@@ -37,8 +37,8 @@ public class TestTriggers
     [Test]
     public void TestBeforeRemove()
     {
-        var departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
-        var employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
+        var departmentId = db.DepartmentTable.Add(name : "HR");
+        var employeeId = db.EmployeeTable.Add(name :"Jane Smith", departmentId :departmentId);
         db.EmployeeTable.Remove(employeeId);
         // log will be BeforeAdd, BeforeNameUpdate, AfterNameUpdate, AfterAdd, BeforeRemove, AfterRemove
         var log = db.EmployeeLogTable.Get(4);
@@ -49,8 +49,8 @@ public class TestTriggers
     [Test]
     public void TestAfterRemove()
     {
-        var departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
-        var employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
+        var departmentId = db.DepartmentTable.Add(name : "HR");
+        var employeeId = db.EmployeeTable.Add(name :"Jane Smith", departmentId :departmentId);
         db.EmployeeTable.Remove(employeeId);
         // log will be BeforeAdd, BeforeNameUpdate, AfterNameUpdate, AfterAdd, BeforeRemove, AfterRemove
         var log = db.EmployeeLogTable.Get(5);
@@ -61,8 +61,8 @@ public class TestTriggers
     [Test]
     public void TestAfterUpdate()
     {
-        var departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
-        var employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
+        var departmentId = db.DepartmentTable.Add(name : "HR");
+        var employeeId = db.EmployeeTable.Add(name :"Jane Smith", departmentId :departmentId);
         var row = db.EmployeeTable.Get(employeeId);
         row.name = "Z";
         // log will be BeforeAdd, BeforeNameUpdate, AfterNameUpdate, AfterAdd, BeforeNameUpdate, AfterNameUpdate
@@ -73,8 +73,8 @@ public class TestTriggers
     [Test]
     public void TestBeforeUpdate()
     {
-        var departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
-        var employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
+        var departmentId = db.DepartmentTable.Add(name : "HR");
+        var employeeId = db.EmployeeTable.Add(name :"Jane Smith", departmentId :departmentId);
         var row = db.EmployeeTable.Get(employeeId);
         row.name = "Z";
         // log will be BeforeAdd, BeforeNameUpdate, AfterNameUpdate, AfterAdd, BeforeNameUpdate, AfterNameUpdate

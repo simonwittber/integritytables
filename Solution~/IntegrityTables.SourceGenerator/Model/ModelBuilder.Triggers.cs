@@ -26,9 +26,17 @@ public static partial class ModelBuilder
             {
                 if (AssertMethodIsPublic(context, methodSymbol)) continue;
                 if (AssertMethodIsStatic(context, methodSymbol)) continue;
-                if (AssertMethodHasParameterCount(context, methodSymbol, 2)) continue;
+                var parameterCount = tableModel.Fields.Count + 1;
+                if (AssertMethodHasParameterCount(context, methodSymbol, parameterCount)) continue;
                 if (AssertParameterType(context, model, methodSymbol, 0, model.QualifiedTypeName)) continue;
-                if (AssertParameterType(context, model, methodSymbol, 1, tableModel.QualifiedTypeName)) continue;
+                foreach(var field in tableModel.Fields)
+                {
+                    var requiredType = field.TypeName;
+                    if(field.IsReference)
+                        requiredType = "int";
+                    if (AssertParameterType(context, model, methodSymbol, field.Index + 1, requiredType)) continue;
+                    if (AssertParameterName(context, model, methodSymbol, field.Index + 1, field.Name)) continue;
+                }
                 AddTriggerModel(tableModel, methodSymbol, triggers);
             }
 

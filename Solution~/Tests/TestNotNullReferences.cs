@@ -11,14 +11,11 @@ public class TestNotNullReferences
         var db = new Database();
         
         var employeeTable = db.EmployeeTable;
-        var employee = new Employee { name = "John Doe" };
         Assert.That(employeeTable.Count, Is.EqualTo(0));
-        Assert.Throws<InvalidOperationException>(() =>  employeeTable.Add(employee));
-        
-        var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
-        employee.departmentId = dept;
-        var id1 = employeeTable.Add(employee);
-        var id2 = employeeTable.Add(new Employee() { name = "Jane Smith", departmentId = dept});
+        Assert.Throws<InvalidOperationException>(() =>  employeeTable.Add(name:"John Doe"));
+        var dept = db.DepartmentTable.Add(name : "HR");
+        var id1 = employeeTable.Add(name:"John Doe", departmentId :dept);
+        var id2 = employeeTable.Add(name :"Jane Smith", departmentId :dept);
         Assert.That(employeeTable.Count, Is.EqualTo(2));
         Assert.IsTrue(employeeTable.ContainsKey(id1));
         Assert.IsTrue(employeeTable.ContainsKey(id2));
@@ -28,16 +25,6 @@ public class TestNotNullReferences
         Assert.That(row2.name, Is.EqualTo("Jane Smith"));
     }
     
-    [Test]
-    public void TestReferenceDefaultsToNull()
-    {
-        var db = new Database();
-        var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
-
-        var employee = new Employee { name = "John Doe" };
-        Assert.That((int)employee.departmentId, Is.LessThan(0));
-        Assert.Throws<InvalidOperationException>(() =>  db.EmployeeTable.Add(employee));
-    }
     
     [Test]
     public void TestAddRowWithInvalidReference()
@@ -45,10 +32,9 @@ public class TestNotNullReferences
         var db = new Database();
         
         var employeeTable = db.EmployeeTable;
-        var employee = new Employee { name = "John Doe" };
         Assert.That(employeeTable.Count, Is.EqualTo(0));
         Assert.Throws<InvalidOperationException>(() =>  
-            employeeTable.Add(employee)
+            employeeTable.Add(name:"Join Doe", departmentId : 9999)
             );
     }
     
@@ -56,11 +42,8 @@ public class TestNotNullReferences
     public void TestAddRowAddsToIndex()
     {
         var db = new Database();
-        var employeeTable = db.EmployeeTable;
-        var employee = new Employee { name = "John Doe" };
-        var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
-        employee.departmentId = dept;
-        var id = employeeTable.Add(employee);
+        var dept = db.DepartmentTable.Add(name : "HR");
+        var id = db.EmployeeTable.Add(name:"John Doe", departmentId :dept);
         Assert.That(db.EmployeeTable.IndexOnDepartmentId.ContainsKey(dept), Is.True);
     }
     
@@ -70,9 +53,9 @@ public class TestNotNullReferences
         var db = new Database();
         var employeeTable = db.EmployeeTable;
         
-        var dept1 = db.DepartmentTable.Add(new Department() { name = "HR" });
-        var dept2 = db.DepartmentTable.Add(new Department() { name = "Engineering" });
-        var id = employeeTable.Add(new Employee { name = "John Doe", departmentId = dept1});
+        var dept1 = db.DepartmentTable.Add(name : "HR");
+        var dept2 = db.DepartmentTable.Add(name : "Engineering");
+        var id = employeeTable.Add(name :"John Doe", departmentId :dept1);
         
         Assert.That(db.EmployeeTable.IndexOnDepartmentId.ContainsKey(dept1), Is.True);
         Assert.That(db.EmployeeTable.IndexOnDepartmentId[dept1].Contains(id), Is.True);
@@ -89,8 +72,8 @@ public class TestNotNullReferences
     public void TestCannotSetNotNullReferenceToNull()
     {
         var db = new Database();
-        var dept1 = db.DepartmentTable.Add(new Department() { name = "HR" });
-        var id = db.EmployeeTable.Add(new Employee { name = "John Doe", departmentId = dept1});
+        var dept1 = db.DepartmentTable.Add( name : "HR" );
+        var id = db.EmployeeTable.Add( name : "John Doe", departmentId :dept1);
         var row = db.EmployeeTable.Get(id);
         Assert.Throws<InvalidOperationException>(() =>  row.departmentId = -1);
     }

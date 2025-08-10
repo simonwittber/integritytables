@@ -15,9 +15,9 @@ public class TestRemove
     {
         db = new Database();
         initialCapacity = db.EmployeeTable.Capacity;
-        departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
-        employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
-        db.EmployeeTable.Add(new Employee() { name = "John Doe", departmentId = departmentId});
+        departmentId = db.DepartmentTable.Add(name : "HR");
+        employeeId = db.EmployeeTable.Add(name :"Jane Smith", departmentId :departmentId);
+        db.EmployeeTable.Add(name :"John Doe", departmentId :departmentId);
     }
     
     [Test]
@@ -46,7 +46,7 @@ public class TestRemove
         // fill the table to capacity
         while (db.EmployeeTable.Count < db.EmployeeTable.Capacity)
         {
-            db.EmployeeTable.Add(new Employee() { name = "John Doe", departmentId = departmentId });
+            db.EmployeeTable.Add(name :"John Doe", departmentId :departmentId );
         }
         
         var id = db.EmployeeTable.Get(employeeId);
@@ -54,7 +54,7 @@ public class TestRemove
         Assert.That(db.EmployeeTable.Count, Is.EqualTo(db.EmployeeTable.Capacity - 1));
         var capacityAfterRemove = db.EmployeeTable.Capacity;
         // adding a new employee should not increase capacity, the slot should be reused
-        db.EmployeeTable.Add(new Employee() { name = "John Doe", departmentId = departmentId });
+        db.EmployeeTable.Add(name :"John Doe", departmentId :departmentId );
         Assert.That(db.EmployeeTable.Capacity, Is.EqualTo(capacityAfterRemove));
     }
     

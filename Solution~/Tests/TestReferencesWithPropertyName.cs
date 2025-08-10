@@ -9,10 +9,8 @@ public class TestReferencesWithPropertyName
     public void TestPropertyNameExists()
     {
         var db = new Database();
-        var employee = new Employee { name = "John Doe" };
-        var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
-        employee.departmentId = dept;
-        var id = db.EmployeeTable.Add(employee);
+        var dept = db.DepartmentTable.Add(name : "HR" );
+        var id = db.EmployeeTable.Add(name:"John Doe", departmentId: dept);
         var row = db.EmployeeTable.Get(id);
         Assert.That((int)row.departmentId, Is.EqualTo(dept));
         var deptRow = row.Department;
@@ -23,10 +21,9 @@ public class TestReferencesWithPropertyName
     public void TestPropertyNameNotExists()
     {
         var db = new Database();
-        var employee = new Employee { name = "John Doe" };
-        var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
-        employee.departmentId = dept;
-        var id = db.EmployeeTable.Add(employee);
+        var dept = db.DepartmentTable.Add(name : "HR" );
+        var id = db.EmployeeTable.Add(name:"John Doe", departmentId: dept);
+
         var row = db.EmployeeTable.Get(id);
         
         Assert.Throws<KeyNotFoundException>(() =>

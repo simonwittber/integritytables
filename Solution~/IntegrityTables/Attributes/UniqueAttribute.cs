@@ -5,10 +5,7 @@ namespace IntegrityTables;
 [AttributeUsage(AttributeTargets.Field)]
 public class UniqueAttribute : Attribute
 {
-    public string? Name;
-
-    public UniqueAttribute(string? name = null)
+    public UniqueAttribute()
     {
-        Name = name;
     }
 }

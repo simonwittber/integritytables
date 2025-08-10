@@ -225,7 +225,7 @@ public static partial class ModelBuilder
                             ));
                             continue;
                         }
-
+                        
                         fieldModel.IsReference = true;
 
                         // does field have [RequiredReference] attribute?
@@ -352,7 +352,7 @@ public static partial class ModelBuilder
                     ReportConventionError(context, fieldModel.FieldSymbol, "Must be a blittable type when table is marked with [Blittable] attribute");
                 }
             }
-
+            fieldModel.Index = tableModel.Fields.Count; 
             tableModel.Fields.Add(fieldModel);
         }
     }

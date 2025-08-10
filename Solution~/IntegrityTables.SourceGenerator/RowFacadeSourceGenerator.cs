@@ -51,6 +51,16 @@ using IntegrityTables;
                 set.Remove(id);
         }}
 
+        private void AddToIndex(IntMap<int> index, int value, int id)
+        {{
+            index[value] = id;
+        }}
+        
+        private void RemoveFromIndex(IntMap<int> index, int value, int id)
+        {{
+            index.Remove(value);
+        }}
+
         public int id => container._ids[index];
 
 {GeneratePropertyAccessors(context, table)}        

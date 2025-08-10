@@ -15,9 +15,9 @@ public class TestGet
     {
         db = new Database();
         initialCapacity = db.EmployeeTable.Capacity;
-        departmentId = db.DepartmentTable.Add(new Department() { name = "HR" });
-        employeeId = db.EmployeeTable.Add(new Employee() { name = "Jane Smith", departmentId = departmentId});
-        db.EmployeeTable.Add(new Employee() { name = "John Doe", departmentId = departmentId});
+        departmentId = db.DepartmentTable.Add("HR");
+        employeeId = db.EmployeeTable.Add(name : "Jane Smith", departmentId : departmentId);
+        db.EmployeeTable.Add( name : "John Doe", departmentId : departmentId);
     }
     
     [Test]

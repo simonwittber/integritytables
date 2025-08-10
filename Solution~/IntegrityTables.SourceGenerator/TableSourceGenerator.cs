@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using IntegrityTables.SourceGeneration.Model;
 using Microsoft.CodeAnalysis;
@@ -15,12 +17,19 @@ public class TableSourceGenerator
 using System;
 using IntegrityTables;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 ");
         if (!string.IsNullOrEmpty(table.NameSpace))
         {
             sb.AppendLine($"namespace {table.NameSpace}");
             sb.AppendLine("{");
         }
+        var constructorParams = new List<string>();
+        foreach (var field in table.Fields)
+        {
+            constructorParams.Add($"{field.QualifiedTypeName} {field.Name} = default");
+        }
+        var addParams = string.Join(", ", constructorParams);
 
         sb.AppendLine($@"
 
@@ -60,12 +69,11 @@ using System.Runtime.CompilerServices;
             return ref _rowContainer.Get(id);
         }}
 
-
         public bool ContainsKey(int id) => _rowContainer.ContainsKey(id);
 
         public {table.TypeName}Row this[int id] => _rowContainer.Get(id);
 
-{GenerateIndexIterators(context, table)}
+        public Span<int> GetIdSpan() => new Span<int>(_rowContainer._ids, 0, _rowContainer._count);
 
         public {table.TypeName}RowContainer.Enumerator GetEnumerator() => _rowContainer.GetEnumerator();
         
@@ -135,17 +143,30 @@ using System.Runtime.CompilerServices;
 
     private static string GenerateAddMethod(SourceProductionContext context, TableModel table)
     {
+        var constructorParams = new List<string>();
+        var constructorArgs = new List<string>();
+
+        foreach (var field in table.Fields)
+        {
+            if(field.IsReference)
+                constructorParams.Add($"{field.QualifiedTypeName} {field.Name} = -1");
+            else
+                constructorParams.Add($"{field.QualifiedTypeName} {field.Name} = default");
+            constructorArgs.Add($"{field.Name}");
+        }
+        var addParams = string.Join(", ", constructorParams);
+        var addArgs = string.Join(", ", constructorArgs);
         var sb = new StringBuilder();
-        sb.AppendLine($@"        public int Add({table.TypeName} row)
+        sb.AppendLine($@"        public int Add({addParams})
         {{");
         foreach(var triggerModel in table.Triggers)
         {
             if (triggerModel.MethodName == "BeforeAdd")
             {
-                sb.AppendLine($"            {triggerModel.Method.ContainingType.Name}.{triggerModel.MethodName}(database, row);");
+                sb.AppendLine($"            {triggerModel.Method.ContainingType.Name}.{triggerModel.MethodName}(database, {addArgs});");
             }
         }
-        sb.AppendLine(@$"            var id = _rowContainer.Add(in row);");
+        sb.AppendLine(@$"            var id = _rowContainer.Add({addArgs});");
         foreach(var triggerModel in table.Triggers)
         {
             if (triggerModel.MethodName == "AfterAdd")
@@ -160,17 +181,6 @@ using System.Runtime.CompilerServices;
         return sb.ToString();
     }
     
-
-    private static string GenerateIndexIterators(SourceProductionContext context, TableModel table)
-    {
-        var sb = new StringBuilder();
-        foreach (var field in table.Fields)
-        {
-            if (!field.IsReference) continue;
-            sb.AppendLine($"        public IndexEnumerator SelectBy{field.CapitalizedName}(int value) => new IndexEnumerator(_rowContainer, _indexOn{field.CapitalizedName}[value]);");
-        }
-        return sb.ToString();
-    }
 
     private static string ClearIndexes(TableModel table)
     {
@@ -192,8 +202,20 @@ using System.Runtime.CompilerServices;
         {
             if (field.IsReference)
             {
-                sb.AppendLine($@"        internal readonly IntMap<IntSet> _indexOn{field.CapitalizedName} = new();
-        public IReadOnlyIntMap<IntSet> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};");
+                if(field.IsUnique)
+                {
+                    sb.AppendLine($@"        internal readonly IntMap<int> _indexOn{field.CapitalizedName} = new();
+        public IReadOnlyIntMap<int> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};
+        public {table.TypeName}Row GetBy{field.CapitalizedName}(int value) => Get(_indexOn{field.CapitalizedName}[value]);
+        public Span<int> Get{field.CapitalizedName}Span() => new Span<{field.QualifiedTypeName}>(_rowContainer._{field.Name}, 0, _rowContainer._count);");
+                }
+                else
+                {
+                    sb.AppendLine($@"        internal readonly IntMap<IntSet> _indexOn{field.CapitalizedName} = new();
+        public IReadOnlyIntMap<IntSet> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};
+        public IndexEnumerator SelectBy{field.CapitalizedName}(int value) => new IndexEnumerator(_rowContainer, _indexOn{field.CapitalizedName}[value]);
+        public Span<int> Get{field.CapitalizedName}Span() => new Span<{field.QualifiedTypeName}>(_rowContainer._{field.Name}, 0, _rowContainer._count);");
+                }
             }
         }
         return sb.ToString();
@@ -206,8 +228,8 @@ using System.Runtime.CompilerServices;
         {
             if (field.IsUnique)
             {
-                sb.AppendLine($@"        internal readonly UniqueIndex<{field.QualifiedTypeName}> _uniqueIndexOn{field.CapitalizedName} = new();");
-                sb.AppendLine($@"        public bool TryGetBy{field.CapitalizedName} ({field.QualifiedTypeName} value, out {table.TypeName}Row row)
+                sb.AppendLine($@"        internal readonly UniqueIndex<{field.QualifiedTypeName}> _uniqueIndexOn{field.CapitalizedName} = new();
+        public bool TryGetBy{field.CapitalizedName} ({field.QualifiedTypeName} value, out {table.TypeName}Row row)
         {{
             if(_uniqueIndexOn{field.CapitalizedName}.TryGetValue(value, out var id))
             {{

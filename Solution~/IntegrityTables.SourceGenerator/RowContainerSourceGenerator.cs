@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using IntegrityTables.SourceGeneration.Model;
 using Microsoft.CodeAnalysis;
@@ -31,7 +34,13 @@ using System.Runtime.CompilerServices;
             sb.AppendLine($"namespace {table.NameSpace}");
             sb.AppendLine("{");
         }
-
+        var constructorParams = new List<string>();
+        foreach (var field in table.Fields)
+        {
+            constructorParams.Add($"{field.QualifiedTypeName} {field.Name} = default");
+        }
+        var addParams = string.Join(", ", constructorParams);
+        
         sb.AppendLine($@"
     // {DatabaseSourceGenerator.GenerationStamp()}
     public class {table.TypeName}RowContainer : IRowContainer
@@ -61,7 +70,8 @@ using System.Runtime.CompilerServices;
             _facades = new {table.TypeName}Row[_initialRowCapacity];
             _flags = new byte[_initialRowCapacity];
             _ids = new int[_initialRowCapacity];
-{ConstructFields(context, table)}            
+{ConstructFields(context, table)}
+{ClearIdArrays(context, table)}                      
         }}
         
         // {DatabaseSourceGenerator.GenerationStamp()}
@@ -75,7 +85,7 @@ using System.Runtime.CompilerServices;
 
         // {DatabaseSourceGenerator.GenerationStamp()}
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Add(in {table.TypeName} row)
+        public int Add({addParams})
         {{
             int slot;
             if(!_freeSlots.TryPop(out slot))
@@ -195,7 +205,10 @@ using System.Runtime.CompilerServices;
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
-            sb.AppendLine($"            _{field.Name}[index] = default;");
+            if(field.IsReference)
+                sb.AppendLine($"            _{field.Name}[index] = -1;");
+            else
+                sb.AppendLine($"            _{field.Name}[index] = default;");
         }
         return sb.ToString();
     }
@@ -205,7 +218,22 @@ using System.Runtime.CompilerServices;
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
-            sb.AppendLine($"            Array.Clear(_{field.Name}, 0, _{field.Name}.Length);");
+            if(field.IsReference)
+                sb.AppendLine($"            new Span<int>(_{field.Name}, 0, _{field.Name}.Length).Fill(-1);");
+            else
+                sb.AppendLine($"            Array.Clear(_{field.Name}, 0, _{field.Name}.Length);");
+        }
+        return sb.ToString();
+    }
+    
+    private static string ClearIdArrays(SourceProductionContext context, TableModel table)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"            new Span<int>(_ids, 0, _ids.Length).Fill(-1);");
+        foreach (var field in table.Fields)
+        {
+            if(field.IsReference)
+                sb.AppendLine($"            new Span<int>(_{field.Name}, 0, _{field.Name}.Length).Fill(-1);");
         }
         return sb.ToString();
     }
@@ -215,7 +243,11 @@ using System.Runtime.CompilerServices;
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
-            sb.AppendLine($"            Array.Resize(ref _{field.Name}, _initialRowCapacity);");
+            if(field.IsReference)
+                sb.AppendLine($@"            Array.Resize(ref _{field.Name}, _initialRowCapacity);
+            new Span<int>(_{field.Name}, _count, _{field.Name}.Length-_count).Fill(-1);");
+            else
+                sb.AppendLine($"            Array.Resize(ref _{field.Name}, _initialRowCapacity);");
         }
         return sb.ToString();
     }
@@ -225,7 +257,7 @@ using System.Runtime.CompilerServices;
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
-            sb.AppendLine($"                facade.{field.Name} = row.{field.Name};");
+            sb.AppendLine($"                facade.{field.Name} = {field.Name};");
         }
         return sb.ToString();
     }

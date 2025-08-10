@@ -12,7 +12,7 @@ public class FieldModel
 
     public string Name => FieldSymbol.Name;
 
-    public string TypeName => FieldSymbol.Type.ToDisplayString();
+    public string TypeName => IsReference?"int":FieldSymbol.Type.ToDisplayString();
 
     public bool IsReference;
 
@@ -38,6 +38,7 @@ public class FieldModel
     {
         get
         {
+            if (IsReference) return "int";
             var namespaceName = NameSpace;
             var databaseNamespace = TableModel.NameSpace;
 
@@ -75,6 +76,7 @@ public class FieldModel
     public bool IsBlittable => IsBlittableType(FieldSymbol.Type);
     public IMethodSymbol AfterUpdateMethod { get; set; }
     public IMethodSymbol BeforeUpdateMethod { get; set; }
+    public int Index { get; set; }
 
     public bool IsComputed;
     public bool IgnoreForEquality;

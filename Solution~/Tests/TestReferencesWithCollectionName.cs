@@ -9,11 +9,12 @@ public class TestReferencesWithCollectionName
     public void TestPropertyNameExists()
     {
         var db = new Database();
-        var dept = db.DepartmentTable.Add(new Department() { name = "HR" });
-        var id1 = db.EmployeeTable.Add(new Employee() { name = "John Doe", departmentId = dept });
+        var dept = db.DepartmentTable.Add(name : "HR" );
+        var id1 = db.EmployeeTable.Add(name:"John Doe", departmentId: dept);
+        
         Assert.That(db.EmployeeTable.IndexOnDepartmentId[dept].Contains(id1), Is.True);
         
-        var id2 = db.EmployeeTable.Add(new Employee() { name = "John Blow", departmentId = dept });
+        var id2 = db.EmployeeTable.Add(name:"John Blow", departmentId: dept);
         Assert.That(db.EmployeeTable.IndexOnDepartmentId[dept].Contains(id2), Is.True);
         
         
