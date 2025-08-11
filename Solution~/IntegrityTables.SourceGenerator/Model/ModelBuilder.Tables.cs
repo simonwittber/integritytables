@@ -353,6 +353,7 @@ public static partial class ModelBuilder
                 }
             }
             fieldModel.Index = tableModel.Fields.Count; 
+            
             tableModel.Fields.Add(fieldModel);
         }
     }

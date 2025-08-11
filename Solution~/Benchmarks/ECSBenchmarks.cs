@@ -28,7 +28,7 @@ public partial struct Velocity
 }
 
 [GenerateSystem(typeof(Database))]
-public partial class TransformVelocityUpdater : ISystem<Database>
+public partial class TransformVelocityUpdater : ISystem
 {
     public Database database { get; set; }
     IntSet entities = new IntSet();

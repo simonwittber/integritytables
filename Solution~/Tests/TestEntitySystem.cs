@@ -27,14 +27,43 @@ public partial struct Velocity
 }
 
 [GenerateSystem(typeof(Database))]
-public partial class TransformVelocityUpdater : ISystem<Database>
+public partial class TransformVelocityUpdater : ISystem
 {
     public Database database { get; set; }
+    
     IntSet entities = new IntSet();
 
-    public void Prepare()
+    void Prepare()
     {
         entities.Clear();
+        entities.UnionWith(database.TransformTable.IndexOnEntityId.Keys);
+        entities.IntersectWith(database.VelocityTable.IndexOnEntityId.Keys);
+        entities.Remove(-1);
+    }
+
+    public void Execute(TransformRow transform, VelocityRow velocity)
+    {
+        transform.x += velocity.x;
+        transform.y += velocity.y;
+        transform.z += velocity.z;
+    }
+    
+    public void Execute()
+    {
+        Prepare();
+        Threaded.ForEach(0, entities.PageCount, (int start, int end) =>
+        {
+            var dbTransformTable = database.TransformTable;
+            var dbVelocityTable = database.VelocityTable;
+            
+            foreach(var i in entities.GetEnumeratorForPageRange(start, end))
+            {
+                var t = dbTransformTable.GetByEntityId(i);
+                var v = dbVelocityTable.GetByEntityId(i);
+                Execute(t, v);
+            }
+        });
+        
     }
 }
 

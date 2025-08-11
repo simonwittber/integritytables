@@ -33,6 +33,8 @@ public class FieldModel
     public string CapitalizedName => $"{Name[0].ToString().ToUpper()}{Name.Substring(1)}";
 
     public bool IsImmutable;
+    
+    public bool IsRawField =>  !(IsReference || BeforeUpdateMethod != null || AfterUpdateMethod != null || IsUnique);
 
     public string QualifiedTypeName
     {

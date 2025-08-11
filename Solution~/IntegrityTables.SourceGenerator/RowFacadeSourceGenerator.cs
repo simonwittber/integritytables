@@ -224,8 +224,7 @@ using IntegrityTables;
 
     private static void GenerateFieldProperty(StringBuilder sb, FieldModel field)
     {
-        var isRawField = !(field.IsReference || field.BeforeUpdateMethod != null || field.AfterUpdateMethod != null || field.IsUnique);
-        if (isRawField)
+        if (field.IsRawField)
         {
             sb.AppendLine($"        public ref {field.QualifiedTypeName} {field.Name} => ref container._{field.Name}[index];");
             return;

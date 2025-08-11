@@ -10,6 +10,8 @@ public class TableModel
 {
     public INamedTypeSymbol TableSymbol;
 
+    public string RowTypeName => $"{TypeName}Row";
+
     public string GroupName;
 
     private string _typeName = null;
