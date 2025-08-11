@@ -27,20 +27,12 @@ public partial struct Velocity
 }
 
 [GenerateSystem(typeof(Database))]
-public partial class TransformVelocityUpdater : ISystem
+public partial class TransformVelocityUpdater : ISystem<Database>
 {
     public Database database { get; set; }
     
-    IntSet entities = new IntSet();
-
-    void Prepare()
-    {
-        entities.Clear();
-        entities.UnionWith(database.TransformTable.IndexOnEntityId.Keys);
-        entities.IntersectWith(database.VelocityTable.IndexOnEntityId.Keys);
-        entities.Remove(-1);
-    }
-
+    public bool AllowThreadedExecution => true;
+    
     public void Execute(TransformRow transform, VelocityRow velocity)
     {
         transform.x += velocity.x;
@@ -48,23 +40,6 @@ public partial class TransformVelocityUpdater : ISystem
         transform.z += velocity.z;
     }
     
-    public void Execute()
-    {
-        Prepare();
-        Threaded.ForEach(0, entities.PageCount, (int start, int end) =>
-        {
-            var dbTransformTable = database.TransformTable;
-            var dbVelocityTable = database.VelocityTable;
-            
-            foreach(var i in entities.GetEnumeratorForPageRange(start, end))
-            {
-                var t = dbTransformTable.GetByEntityId(i);
-                var v = dbVelocityTable.GetByEntityId(i);
-                Execute(t, v);
-            }
-        });
-        
-    }
 }
 
 [TestFixture]
@@ -78,6 +53,7 @@ public class TestECS
     Transform[] transforms;
     Velocity[] velocities;
     Transform[] results;
+    int[] entities;
 
     [SetUp]
     public void Setup()
@@ -87,10 +63,12 @@ public class TestECS
         transforms = new Transform[N];
         velocities = new Velocity[N];
         results = new Transform[N];
+        entities = new int[N];
         var rng = new System.Random(123);
         for (var i = 0; i < N; i++)
         {
             var entityId = db.EntityTable.Add();
+            entities[i] = entityId;
             var transform = new Transform {entityId = entityId, x = rng.NextSingle(), y = rng.NextSingle(), z = rng.NextSingle()};
             db.TransformTable.Add(entityId : entityId, x : transform.x, y : transform.y, z : transform.z);
             var velocity = new Velocity {entityId = entityId, x = rng.NextSingle(), y = rng.NextSingle(), z = rng.NextSingle()};
@@ -105,22 +83,8 @@ public class TestECS
     [Test]
     public void ScalarTables()
     {
-        var entities = new IntSet();
-        var span = db.TransformTable.IndexOnEntityId.Keys;
-        entities.UnionWith(span);
-        Assert.That(entities.Contains(N), Is.False);
-        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
-        entities.Remove(-1);
-        Assert.That(entities.Count, Is.EqualTo(N));
-        Assert.That(entities.Contains(N), Is.False);
-        foreach(var i in entities)
-        {
-            var t = db.TransformTable.GetByEntityId(i);
-            var v = db.VelocityTable.GetByEntityId(i);
-            t.x += v.x;
-            t.y += v.y;
-            t.z += v.z;
-        }
+        velocityUpdater.Prepare();
+        velocityUpdater.ExecuteScalar();
         
         foreach(var i in entities)
         {
@@ -136,26 +100,9 @@ public class TestECS
     [Test]
     public void ThreadedTables()
     {
-        var entities = new IntSet();
-        var span = db.TransformTable.IndexOnEntityId.Keys;
-        entities.UnionWith(span);
-        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
-        entities.Remove(-1);
-        var partition = Partitioner.Create(0, entities.PageCount);
-        Threaded.ForEach(0, entities.PageCount, (int start, int end) =>
-        {
-            var dbTransformTable = db.TransformTable;
-            var dbVelocityTable = db.VelocityTable;
-            
-            foreach(var i in entities.GetEnumeratorForPageRange(start, end))
-            {
-                var t = dbTransformTable.GetByEntityId(i);
-                var v = dbVelocityTable.GetByEntityId(i);
-                t.x += v.x;
-                t.y += v.y;
-                t.z += v.z;
-            }
-        });
+        velocityUpdater.Prepare();
+        velocityUpdater.ExecuteThreaded();
+        
         foreach(var i in entities)
         {
             var t = db.TransformTable.GetByEntityId(i);

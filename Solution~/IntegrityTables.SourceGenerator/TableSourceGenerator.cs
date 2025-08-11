@@ -64,14 +64,14 @@ using System.Runtime.InteropServices;
 {ClearIndexes(table)}
         }}
 
-        public ref {table.TypeName}Row Get(int id) 
+        public ref {table.RowTypeName} Get(int id) 
         {{
             return ref _rowContainer.Get(id);
         }}
 
         public bool ContainsKey(int id) => _rowContainer.ContainsKey(id);
 
-        public {table.TypeName}Row this[int id] => _rowContainer.Get(id);
+        public {table.RowTypeName} this[int id] => _rowContainer.Get(id);
 
         public Span<int> GetIdSpan() => new Span<int>(_rowContainer._ids, 0, _rowContainer._count);
 
@@ -80,7 +80,7 @@ using System.Runtime.InteropServices;
         public Enumerator Rows => new Enumerator(_rowContainer);
 
         public struct Enumerator {{
-            public ref {table.TypeName}Row Current => ref container.Get(index);
+            public ref {table.RowTypeName} Current => ref container.Get(index);
             int index;
             {table.TypeName}RowContainer container;
 
@@ -106,7 +106,7 @@ using System.Runtime.InteropServices;
         }}
 
         public struct IndexEnumerator {{
-            public ref {table.TypeName}Row Current => ref container.Get(index);
+            public ref {table.RowTypeName} Current => ref container.Get(index);
             int index;
             {table.TypeName}RowContainer container;
             IntSet ids;
@@ -206,7 +206,7 @@ using System.Runtime.InteropServices;
                 {
                     sb.AppendLine($@"        internal readonly IntMap<int> _indexOn{field.CapitalizedName} = new();
         public IReadOnlyIntMap<int> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};
-        public {table.TypeName}Row GetBy{field.CapitalizedName}(int value) => Get(_indexOn{field.CapitalizedName}[value]);
+        public {table.RowTypeName} GetBy{field.CapitalizedName}(int value) => Get(_indexOn{field.CapitalizedName}[value]);
         public Span<int> Get{field.CapitalizedName}Span() => new Span<{field.QualifiedTypeName}>(_rowContainer._{field.Name}, 0, _rowContainer._count);");
                 }
                 else
@@ -229,7 +229,7 @@ using System.Runtime.InteropServices;
             if (field.IsUnique)
             {
                 sb.AppendLine($@"        internal readonly UniqueIndex<{field.QualifiedTypeName}> _uniqueIndexOn{field.CapitalizedName} = new();
-        public bool TryGetBy{field.CapitalizedName} ({field.QualifiedTypeName} value, out {table.TypeName}Row row)
+        public bool TryGetBy{field.CapitalizedName} ({field.QualifiedTypeName} value, out {table.RowTypeName} row)
         {{
             if(_uniqueIndexOn{field.CapitalizedName}.TryGetValue(value, out var id))
             {{

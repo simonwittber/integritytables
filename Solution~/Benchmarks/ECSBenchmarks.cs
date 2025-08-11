@@ -28,15 +28,19 @@ public partial struct Velocity
 }
 
 [GenerateSystem(typeof(Database))]
-public partial class TransformVelocityUpdater : ISystem
+public partial class TransformVelocityUpdater : ISystem<Database>
 {
     public Database database { get; set; }
-    IntSet entities = new IntSet();
-
-    public void Prepare()
+    
+    public bool AllowThreadedExecution => true;
+    
+    public void Execute(TransformRow transform, VelocityRow velocity)
     {
-        entities.Clear();
+        transform.x += velocity.x;
+        transform.y += velocity.y;
+        transform.z += velocity.z;
     }
+    
 }
 
 [MarkdownExporterAttribute.GitHub]
@@ -107,101 +111,22 @@ public class ECSBenchmarks
     [Benchmark]
     public void ScalarTables()
     {
-        var entities = new IntSet();
-        var span = db.TransformTable.IndexOnEntityId.Keys;
-        entities.UnionWith(span);
-        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
-        entities.Remove(-1);
-        foreach (var i in entities)
-        {
-            var t = db.TransformTable.GetByEntityId(i);
-            var v = db.VelocityTable.GetByEntityId(i);
-            t.x += v.x;
-            t.y += v.y;
-            t.z += v.z;
-        }
+        velocityUpdater.Prepare();
+        velocityUpdater.ExecuteScalar();
     }
-
+    
     [Benchmark]
     public void ThreadedTables()
     {
-        var entities = new IntSet();
-        var span = db.TransformTable.IndexOnEntityId.Keys;
-        entities.UnionWith(span);
-        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
-        entities.Remove(-1);
-        var partition = Partitioner.Create(0, entities.PageCount);
-        Parallel.ForEach(partition, range =>
-        {
-            var dbTransformTable = db.TransformTable;
-            var dbVelocityTable = db.VelocityTable;
-
-            foreach (var i in entities.GetEnumeratorForPageRange(range.Item1, range.Item2))
-            {
-                var t = dbTransformTable.GetByEntityId(i);
-                var v = dbVelocityTable.GetByEntityId(i);
-                t.x += v.x;
-                t.y += v.y;
-                t.z += v.z;
-            }
-        });
+        velocityUpdater.Prepare();
+        velocityUpdater.ExecuteThreaded();
     }
-
     [Benchmark]
-    public void ThreadedTables_Custom()
+    
+    public void AutoTables()
     {
-        var entities = new IntSet();
-        var span = db.TransformTable.IndexOnEntityId.Keys;
-        entities.UnionWith(span);
-        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
-        entities.Remove(-1);
-        Threaded.ForEach(0, entities.PageCount, (int start, int end) =>
-        {
-            var dbTransformTable = db.TransformTable;
-            var dbVelocityTable = db.VelocityTable;
-
-            foreach (var i in entities.GetEnumeratorForPageRange(start, end))
-            {
-                var t = dbTransformTable.GetByEntityId(i);
-                var v = dbVelocityTable.GetByEntityId(i);
-                t.x += v.x;
-                t.y += v.y;
-                t.z += v.z;
-            }
-        });
+        velocityUpdater.Execute();
     }
 
-
-    [Benchmark]
-    public void ScalarTablesPreSorted()
-    {
-        for (var i = 0; i < N; i++)
-        {
-            var t = db.TransformTable.GetByEntityId(i);
-            var v = db.VelocityTable.GetByEntityId(i);
-            t.x += v.x;
-            t.y += v.y;
-            t.z += v.z;
-        }
-    }
-
-    [Benchmark]
-    public void ThreadedTablesPreSorted()
-    {
-        var partition = Partitioner.Create(0, N);
-        Threaded.ForEach(0, N, (int start, int end) =>
-        {
-            var dbTransformTable = db.TransformTable;
-            var dbVelocityTable = db.VelocityTable;
-
-            for (var i = start; i < end; i++)
-            {
-                var t = dbTransformTable.GetByEntityId(i);
-                var v = dbVelocityTable.GetByEntityId(i);
-                t.x += v.x;
-                t.y += v.y;
-                t.z += v.z;
-            }
-        });
-    }
+    
 }

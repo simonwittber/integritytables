@@ -23,13 +23,13 @@ using IntegrityTables;
 
         sb.AppendLine($@"
     // {DatabaseSourceGenerator.GenerationStamp()}
-    public struct {table.TypeName}Row
+    public struct {table.RowTypeName}
     {{
         private int index;
         private {table.TypeName}RowContainer container;
         private {model.TypeName} database;
 
-        public {table.TypeName}Row(int index, {table.TypeName}RowContainer container, {model.TypeName} database)
+        public {table.RowTypeName}(int index, {table.TypeName}RowContainer container, {model.TypeName} database)
         {{
             this.index = index;
             this.container = container;
@@ -75,7 +75,7 @@ using IntegrityTables;
     private static string GenerateRemoveMethod(SourceProductionContext context, TableModel table)
     {
         var removeThrow = new StringBuilder();
-        table.Dependencies.ForEach(dep => { removeThrow.AppendLine($"\n            if(database.{dep.TableModel.FacadeName}._indexOn{dep.CapitalizedName}.ContainsKey(id)) throw new InvalidOperationException($\"Cannot remove {table.TypeName}Row with id {{id}} because it is referenced by {dep.TableModel.FacadeName}.{dep.Name}\");"); });
+        table.Dependencies.ForEach(dep => { removeThrow.AppendLine($"\n            if(database.{dep.TableModel.FacadeName}._indexOn{dep.CapitalizedName}.ContainsKey(id)) throw new InvalidOperationException($\"Cannot remove {table.RowTypeName} with id {{id}} because it is referenced by {dep.TableModel.FacadeName}.{dep.Name}\");"); });
         var sb = new StringBuilder();
         sb.AppendLine($@"        public void Remove()
         {{
@@ -147,7 +147,7 @@ using IntegrityTables;
             {
                 if (!string.IsNullOrEmpty(field.PropertyName))
                 {
-                    sb.AppendLine($@"        public {field.ReferencedTableModel.TypeName}Row {field.PropertyName} => database.{field.ReferencedTableModel.FacadeName}[container._{field.Name}[index]];");
+                    sb.AppendLine($@"        public {field.ReferencedTableModel.RowTypeName} {field.PropertyName} => database.{field.ReferencedTableModel.FacadeName}[container._{field.Name}[index]];");
                 }
 
                 if (field.IsNotNull)
@@ -218,7 +218,7 @@ using IntegrityTables;
         if (!field.IsReference || string.IsNullOrEmpty(field.PropertyName))
             return;
 
-        sb.AppendLine($"        public {field.ReferencedTableModel.TypeName}Row {field.PropertyName} => " +
+        sb.AppendLine($"        public {field.ReferencedTableModel.RowTypeName} {field.PropertyName} => " +
                       $"database.{field.ReferencedTableModel.FacadeName}[container._{field.Name}[index]];");
     }
 

@@ -53,7 +53,7 @@ using System.Runtime.CompilerServices;
 
         internal Stack<int> _freeSlots = new Stack<int>();
         private int _version = 0;
-        internal {table.TypeName}Row[] _facades = Array.Empty<{table.TypeName}Row>();
+        internal {table.RowTypeName}[] _facades = Array.Empty<{table.RowTypeName}>();
         internal byte[] _flags = Array.Empty<byte>();
         internal int[] _ids = Array.Empty<int>();
 {GenerateFields(context, table)}        
@@ -67,7 +67,7 @@ using System.Runtime.CompilerServices;
             this._database = database;
             var _initialRowCapacity = 16;
             _count = 0;
-            _facades = new {table.TypeName}Row[_initialRowCapacity];
+            _facades = new {table.RowTypeName}[_initialRowCapacity];
             _flags = new byte[_initialRowCapacity];
             _ids = new int[_initialRowCapacity];
 {ConstructFields(context, table)}
@@ -94,7 +94,7 @@ using System.Runtime.CompilerServices;
                 slot = _count++;
             }}
             _ids[slot] = slot;
-            var facade = _facades[slot] = new {table.TypeName}Row(slot, this, _database);
+            var facade = _facades[slot] = new {table.RowTypeName}(slot, this, _database);
             try {{
 {AssignFacadeFields(context, table)}
             }} catch(InvalidOperationException) {{
@@ -135,7 +135,7 @@ using System.Runtime.CompilerServices;
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public ref {table.TypeName}Row Get(int id) 
+        public ref {table.RowTypeName} Get(int id) 
         {{
             if (id < 0 || id >= _flags.Length)
                 throw new KeyNotFoundException($""Row with id {{id}} does not exist in {table.TypeName}RowContainer"");
