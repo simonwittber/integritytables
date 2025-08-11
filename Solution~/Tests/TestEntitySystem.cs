@@ -48,6 +48,7 @@ public class TestECS
 
     Transform[] transforms;
     Velocity[] velocities;
+    Transform[] results;
 
     [SetUp]
     public void Setup()
@@ -56,29 +57,30 @@ public class TestECS
         velocityUpdater = new TransformVelocityUpdater {database = db};
         transforms = new Transform[N];
         velocities = new Velocity[N];
+        results = new Transform[N];
         var rng = new System.Random(123);
         for (var i = 0; i < N; i++)
         {
             var entityId = db.EntityTable.Add();
             var transform = new Transform {entityId = entityId, x = rng.NextSingle(), y = rng.NextSingle(), z = rng.NextSingle()};
-            db.TransformTable.Add(entityId : entityId, x : transform.entityId, y : transform.y, z : transform.z);
+            db.TransformTable.Add(entityId : entityId, x : transform.x, y : transform.y, z : transform.z);
             var velocity = new Velocity {entityId = entityId, x = rng.NextSingle(), y = rng.NextSingle(), z = rng.NextSingle()};
-            db.VelocityTable.Add(entityId : entityId, x : velocity.entityId, y : velocity.y, z : velocity.z);
+            db.VelocityTable.Add(entityId : entityId, x : velocity.x, y : velocity.y, z : velocity.z);
             transforms[i] = transform;
             velocities[i] = velocity;
+            results[i] = new Transform {entityId = entityId, x = transform.x + velocity.x, y = transform.y + velocity.y, z = transform.z + velocity.z};
         }
     }
 
-    
 
     [Test]
     public void ScalarTables()
     {
         var entities = new IntSet();
-        var span = db.TransformTable.GetEntityIdSpan();
+        var span = db.TransformTable.IndexOnEntityId.Keys;
         entities.UnionWith(span);
         Assert.That(entities.Contains(N), Is.False);
-        entities.IntersectWith(db.VelocityTable.GetEntityIdSpan());
+        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
         entities.Remove(-1);
         Assert.That(entities.Count, Is.EqualTo(N));
         Assert.That(entities.Contains(N), Is.False);
@@ -89,6 +91,50 @@ public class TestECS
             t.x += v.x;
             t.y += v.y;
             t.z += v.z;
+        }
+        
+        foreach(var i in entities)
+        {
+            var t = db.TransformTable.GetByEntityId(i);
+            var r = results[i];
+            Assert.That(t.x, Is.EqualTo(r.x).Within(0.0001f));
+            Assert.That(t.y, Is.EqualTo(r.y).Within(0.0001f));
+            Assert.That(t.z, Is.EqualTo(r.z).Within(0.0001f));
+
+        }
+    }
+    
+    [Test]
+    public void ThreadedTables()
+    {
+        var entities = new IntSet();
+        var span = db.TransformTable.IndexOnEntityId.Keys;
+        entities.UnionWith(span);
+        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
+        entities.Remove(-1);
+        var partition = Partitioner.Create(0, entities.PageCount);
+        Threaded.ForEach(0, entities.PageCount, (int start, int end) =>
+        {
+            var dbTransformTable = db.TransformTable;
+            var dbVelocityTable = db.VelocityTable;
+            
+            foreach(var i in entities.GetEnumeratorForPageRange(start, end))
+            {
+                var t = dbTransformTable.GetByEntityId(i);
+                var v = dbVelocityTable.GetByEntityId(i);
+                t.x += v.x;
+                t.y += v.y;
+                t.z += v.z;
+            }
+        });
+        foreach(var i in entities)
+        {
+            var t = db.TransformTable.GetByEntityId(i);
+            var r = results[i];
+            Assert.That(t.x, Is.EqualTo(r.x).Within(0.0001f));
+            Assert.That(t.y, Is.EqualTo(r.y).Within(0.0001f));
+            Assert.That(t.z, Is.EqualTo(r.z).Within(0.0001f));
+
         }
     }
 

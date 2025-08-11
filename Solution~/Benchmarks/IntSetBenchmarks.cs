@@ -15,7 +15,7 @@ public class IdSetBenchmarks
     private int[] aKeys, bKeys;
     private int[] lookupKeys;
 
-    private IntSet intSet;
+    private IntSet intSet, intSetB;
     HashSet<int> hashSet;
     
     [IterationSetup]
@@ -44,6 +44,7 @@ public class IdSetBenchmarks
 
         hashSet = new HashSet<int>(aKeys);
         intSet = new IntSet(aKeys);
+        intSetB = new IntSet(bKeys);
     }
 
     
@@ -125,6 +126,13 @@ public class IdSetBenchmarks
     {
         var idSet = new IntSet(aKeys);
         idSet.UnionWith(bKeys);
+    }
+    
+    [Benchmark]
+    public void IntSet_UnionWith_IntSet()
+    {
+        var idSet = new IntSet(aKeys);
+        idSet.UnionWith(intSetB);
     }
     
     [Benchmark]

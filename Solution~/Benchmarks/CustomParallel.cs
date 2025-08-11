@@ -1,0 +1,1 @@
+namespace IntegrityTables.Benchmarks.ECS;

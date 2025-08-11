@@ -12,6 +12,7 @@ public interface IReadOnlyIntMap<T>
     bool TryGetValue(int v, out T value);
     IntSet.Enumerator GetEnumerator();
     T this[int v] { get; }
+    IReadOnlyIntSet Keys { get; }
 }
 
 public class IntMap<T> : IReadOnlyIntMap<T>
@@ -25,6 +26,9 @@ public class IntMap<T> : IReadOnlyIntMap<T>
 
     private int _initialKey;
     private bool _isInitialized;
+    
+    public IReadOnlyIntSet Keys => _keys;
+    
     public int Count { get; private set; }
 
     private void EnsurePage(int pageIndex)

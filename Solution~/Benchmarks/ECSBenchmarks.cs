@@ -44,8 +44,7 @@ public partial class TransformVelocityUpdater : ISystem<Database>
 [MemoryDiagnoser(false)]
 public class ECSBenchmarks
 {
-    [Params(100,1000,10000,100000)]
-    public int N = 100;
+    [Params(100, 1000, 10000, 100000)] public int N = 100;
 
     private Database db;
     public TransformVelocityUpdater velocityUpdater;
@@ -65,9 +64,9 @@ public class ECSBenchmarks
         {
             var entityId = db.EntityTable.Add();
             var transform = new Transform {entityId = entityId, x = rng.NextSingle(), y = rng.NextSingle(), z = rng.NextSingle()};
-            db.TransformTable.Add(entityId : entityId, x : transform.entityId, y : transform.y, z : transform.z);
+            db.TransformTable.Add(entityId: entityId, x: transform.entityId, y: transform.y, z: transform.z);
             var velocity = new Velocity {entityId = entityId, x = rng.NextSingle(), y = rng.NextSingle(), z = rng.NextSingle()};
-            db.VelocityTable.Add(entityId : entityId, x : velocity.entityId, y : velocity.y, z : velocity.z);
+            db.VelocityTable.Add(entityId: entityId, x: velocity.entityId, y: velocity.y, z: velocity.z);
             transforms[i] = transform;
             velocities[i] = velocity;
         }
@@ -109,10 +108,11 @@ public class ECSBenchmarks
     public void ScalarTables()
     {
         var entities = new IntSet();
-        entities.UnionWith(db.TransformTable.GetEntityIdSpan());
-        entities.IntersectWith(db.VelocityTable.GetEntityIdSpan());
+        var span = db.TransformTable.IndexOnEntityId.Keys;
+        entities.UnionWith(span);
+        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
         entities.Remove(-1);
-        foreach(var i in entities)
+        foreach (var i in entities)
         {
             var t = db.TransformTable.GetByEntityId(i);
             var v = db.VelocityTable.GetByEntityId(i);
@@ -126,16 +126,78 @@ public class ECSBenchmarks
     public void ThreadedTables()
     {
         var entities = new IntSet();
-        entities.UnionWith(db.TransformTable.GetEntityIdSpan());
-        entities.IntersectWith(db.VelocityTable.GetEntityIdSpan());
+        var span = db.TransformTable.IndexOnEntityId.Keys;
+        entities.UnionWith(span);
+        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
         entities.Remove(-1);
-        var partition = Partitioner.Create(0, entities.Count);
+        var partition = Partitioner.Create(0, entities.PageCount);
         Parallel.ForEach(partition, range =>
         {
-            for(var i = range.Item1; i < range.Item2; i++)
+            var dbTransformTable = db.TransformTable;
+            var dbVelocityTable = db.VelocityTable;
+
+            foreach (var i in entities.GetEnumeratorForPageRange(range.Item1, range.Item2))
             {
-                var t = db.TransformTable.GetByEntityId(i);
-                var v = db.VelocityTable.GetByEntityId(i);
+                var t = dbTransformTable.GetByEntityId(i);
+                var v = dbVelocityTable.GetByEntityId(i);
+                t.x += v.x;
+                t.y += v.y;
+                t.z += v.z;
+            }
+        });
+    }
+
+    [Benchmark]
+    public void ThreadedTables_Custom()
+    {
+        var entities = new IntSet();
+        var span = db.TransformTable.IndexOnEntityId.Keys;
+        entities.UnionWith(span);
+        entities.IntersectWith(db.VelocityTable.IndexOnEntityId.Keys);
+        entities.Remove(-1);
+        Threaded.ForEach(0, entities.PageCount, (int start, int end) =>
+        {
+            var dbTransformTable = db.TransformTable;
+            var dbVelocityTable = db.VelocityTable;
+
+            foreach (var i in entities.GetEnumeratorForPageRange(start, end))
+            {
+                var t = dbTransformTable.GetByEntityId(i);
+                var v = dbVelocityTable.GetByEntityId(i);
+                t.x += v.x;
+                t.y += v.y;
+                t.z += v.z;
+            }
+        });
+    }
+
+
+    [Benchmark]
+    public void ScalarTablesPreSorted()
+    {
+        for (var i = 0; i < N; i++)
+        {
+            var t = db.TransformTable.GetByEntityId(i);
+            var v = db.VelocityTable.GetByEntityId(i);
+            t.x += v.x;
+            t.y += v.y;
+            t.z += v.z;
+        }
+    }
+
+    [Benchmark]
+    public void ThreadedTablesPreSorted()
+    {
+        var partition = Partitioner.Create(0, N);
+        Threaded.ForEach(0, N, (int start, int end) =>
+        {
+            var dbTransformTable = db.TransformTable;
+            var dbVelocityTable = db.VelocityTable;
+
+            for (var i = start; i < end; i++)
+            {
+                var t = dbTransformTable.GetByEntityId(i);
+                var v = dbVelocityTable.GetByEntityId(i);
                 t.x += v.x;
                 t.y += v.y;
                 t.z += v.z;

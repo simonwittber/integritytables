@@ -20,7 +20,7 @@ using IntegrityTables;
             sb.AppendLine($"namespace {table.NameSpace}");
             sb.AppendLine("{");
         }
-        
+
         sb.AppendLine($@"
     // {DatabaseSourceGenerator.GenerationStamp()}
     public struct {table.TypeName}Row
@@ -71,32 +71,29 @@ using IntegrityTables;
         if (!string.IsNullOrEmpty(table.NameSpace)) sb.AppendLine("}");
         context.AddSource($"{model.FileName("Row", table.TypeName)}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
-    
+
     private static string GenerateRemoveMethod(SourceProductionContext context, TableModel table)
     {
         var removeThrow = new StringBuilder();
-        table.Dependencies.ForEach(dep =>
-        {
-            removeThrow.AppendLine($"\n            if(database.{dep.TableModel.FacadeName}._indexOn{dep.CapitalizedName}.ContainsKey(id)) throw new InvalidOperationException($\"Cannot remove {table.TypeName}Row with id {{id}} because it is referenced by {dep.TableModel.FacadeName}.{dep.Name}\");");
-        });
+        table.Dependencies.ForEach(dep => { removeThrow.AppendLine($"\n            if(database.{dep.TableModel.FacadeName}._indexOn{dep.CapitalizedName}.ContainsKey(id)) throw new InvalidOperationException($\"Cannot remove {table.TypeName}Row with id {{id}} because it is referenced by {dep.TableModel.FacadeName}.{dep.Name}\");"); });
         var sb = new StringBuilder();
         sb.AppendLine($@"        public void Remove()
         {{
 {removeThrow}");
-        foreach(var triggerModel in table.Triggers)
+        foreach (var triggerModel in table.Triggers)
         {
             if (triggerModel.MethodName == "BeforeRemove")
             {
                 sb.AppendLine($"            {triggerModel.Method.ContainingType.Name}.{triggerModel.MethodName}(database, this);");
             }
         }
-        foreach(var triggerModel in table.Triggers)
+
+        foreach (var triggerModel in table.Triggers)
         {
             if (triggerModel.MethodName == "AfterRemove")
             {
                 sb.AppendLine($"            int _id = id;");
                 sb.AppendLine($"            var _database = database;");
-
             }
         }
 
@@ -112,16 +109,18 @@ using IntegrityTables;
                 sb.AppendLine($"            database.{table.FacadeName}._uniqueIndexOn{field.CapitalizedName}.Remove({field.Name});");
             }
         }
+
         sb.AppendLine(@$"            container.Remove(id);");
-        foreach(var triggerModel in table.Triggers)
+        foreach (var triggerModel in table.Triggers)
         {
             if (triggerModel.MethodName == "AfterRemove")
             {
                 sb.AppendLine($"            {triggerModel.Method.ContainingType.Name}.{triggerModel.MethodName}(_database, _id);");
             }
         }
+
         sb.AppendLine("        }");
-            
+
         return sb.ToString();
     }
 
@@ -137,19 +136,20 @@ using IntegrityTables;
         return sb.ToString();
     }
 
-    private static string GeneratePropertyAccessors(SourceProductionContext context, TableModel table)
+    private static string xGeneratePropertyAccessors(SourceProductionContext context, TableModel table)
     {
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
             var checkReference = string.Empty;
-            
+
             if (field.IsReference)
             {
                 if (!string.IsNullOrEmpty(field.PropertyName))
                 {
                     sb.AppendLine($@"        public {field.ReferencedTableModel.TypeName}Row {field.PropertyName} => database.{field.ReferencedTableModel.FacadeName}[container._{field.Name}[index]];");
                 }
+
                 if (field.IsNotNull)
                 {
                     checkReference = $@"                if(value < 0) throw new InvalidOperationException($""Cannot set {field.Name} to null, it is a non-nullable reference."");
@@ -184,19 +184,132 @@ using IntegrityTables;
             {{
                 var oldValue = container._{field.Name}[index];
 {(string.IsNullOrEmpty(checkReference) ? "                if(oldValue == value) return;" : checkReference)}");
-            if(field.IsUnique)
+            if (field.IsUnique)
                 sb.AppendLine(@$"                database.{field.TableModel.FacadeName}._uniqueIndexOn{field.CapitalizedName}.AssertDoesNotContain(value);");
-            if(field.BeforeUpdateMethod != null)
+            if (field.BeforeUpdateMethod != null)
                 sb.AppendLine(@$"                {field.TableModel.QualifiedTypeName}.{field.BeforeUpdateMethod.Name}(database, this, value);");
             sb.AppendLine(@$"                container._{field.Name}[index] = value;");
-            if(field.IsUnique)
+            if (field.IsUnique)
                 sb.AppendLine(@$"                database.{field.TableModel.FacadeName}._uniqueIndexOn{field.CapitalizedName}.Add(value, index);");
-            if(field.AfterUpdateMethod != null)
+            if (field.AfterUpdateMethod != null)
                 sb.AppendLine(@$"                {field.TableModel.QualifiedTypeName}.{field.AfterUpdateMethod.Name}(database, this, oldValue);");
             sb.AppendLine($@"
             }}
         }}");
         }
+
         return sb.ToString();
+    }
+
+    private static string GeneratePropertyAccessors(SourceProductionContext context, TableModel table)
+    {
+        var sb = new StringBuilder();
+        foreach (var field in table.Fields)
+        {
+            GenerateNavigationProperty(sb, field);
+            GenerateFieldProperty(sb, field);
+        }
+
+        return sb.ToString();
+    }
+
+    private static void GenerateNavigationProperty(StringBuilder sb, FieldModel field)
+    {
+        if (!field.IsReference || string.IsNullOrEmpty(field.PropertyName))
+            return;
+
+        sb.AppendLine($"        public {field.ReferencedTableModel.TypeName}Row {field.PropertyName} => " +
+                      $"database.{field.ReferencedTableModel.FacadeName}[container._{field.Name}[index]];");
+    }
+
+    private static void GenerateFieldProperty(StringBuilder sb, FieldModel field)
+    {
+        var isRawField = !(field.IsReference || field.BeforeUpdateMethod != null || field.AfterUpdateMethod != null || field.IsUnique);
+        if (isRawField)
+        {
+            sb.AppendLine($"        public ref {field.QualifiedTypeName} {field.Name} => ref container._{field.Name}[index];");
+            return;
+        }
+        
+        sb.AppendLine($"        public {field.QualifiedTypeName} {field.Name}");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            get => container._{field.Name}[index];");
+        sb.AppendLine("            set");
+        sb.AppendLine("            {");
+        sb.AppendLine($"                var oldValue = container._{field.Name}[index];");
+
+        GenerateValueValidation(sb, field);
+        GenerateUniqueValidation(sb, field);
+        GenerateBeforeUpdateHook(sb, field);
+        GenerateValueAssignment(sb, field);
+        GenerateUniqueIndexUpdate(sb, field);
+        GenerateAfterUpdateHook(sb, field);
+
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+    }
+
+    private static void GenerateValueValidation(StringBuilder sb, FieldModel field)
+    {
+        if (!field.IsReference)
+        {
+            sb.AppendLine("                if(oldValue == value) return;");
+            return;
+        }
+
+        if (field.IsNotNull)
+        {
+            sb.AppendLine($"                if(value < 0) throw new InvalidOperationException($\"Cannot set {field.Name} to null, it is a non-nullable reference.\");");
+            sb.AppendLine("                if(oldValue == value) return;");
+            sb.AppendLine($"                if(!database.{field.ReferencedTableModel.FacadeName}.ContainsKey(value))");
+            sb.AppendLine($"                    throw new InvalidOperationException($\"Row with id {{value}} does not exist in {field.ReferencedTableModel.FacadeName}.\");");
+            sb.AppendLine("                else");
+            sb.AppendLine("                {");
+            sb.AppendLine($"                    RemoveFromIndex(database.{field.TableModel.FacadeName}._indexOn{field.CapitalizedName}, oldValue, id);");
+            sb.AppendLine($"                    AddToIndex(database.{field.TableModel.FacadeName}._indexOn{field.CapitalizedName}, value, id);");
+            sb.AppendLine("                }");
+        }
+        else
+        {
+            sb.AppendLine("                if(oldValue == value) return;");
+            sb.AppendLine("                if(value >= 0) {");
+            sb.AppendLine($"                    if(!database.{field.ReferencedTableModel.FacadeName}.ContainsKey(value))");
+            sb.AppendLine($"                        throw new InvalidOperationException($\"Row with id {{value}} does not exist in {field.ReferencedTableModel.FacadeName}.\");");
+            sb.AppendLine("                    else");
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        AddToIndex(database.{field.TableModel.FacadeName}._indexOn{field.CapitalizedName}, value, id);");
+            sb.AppendLine("                    }");
+            sb.AppendLine("                }");
+            sb.AppendLine($"                if(oldValue >= 0) RemoveFromIndex(database.{field.TableModel.FacadeName}._indexOn{field.CapitalizedName}, oldValue, id);");
+        }
+    }
+
+    private static void GenerateUniqueValidation(StringBuilder sb, FieldModel field)
+    {
+        if (field.IsUnique)
+            sb.AppendLine($"                database.{field.TableModel.FacadeName}._uniqueIndexOn{field.CapitalizedName}.AssertDoesNotContain(value);");
+    }
+
+    private static void GenerateBeforeUpdateHook(StringBuilder sb, FieldModel field)
+    {
+        if (field.BeforeUpdateMethod != null)
+            sb.AppendLine($"                {field.TableModel.QualifiedTypeName}.{field.BeforeUpdateMethod.Name}(database, this, value);");
+    }
+
+    private static void GenerateValueAssignment(StringBuilder sb, FieldModel field)
+    {
+        sb.AppendLine($"                container._{field.Name}[index] = value;");
+    }
+
+    private static void GenerateUniqueIndexUpdate(StringBuilder sb, FieldModel field)
+    {
+        if (field.IsUnique)
+            sb.AppendLine($"                database.{field.TableModel.FacadeName}._uniqueIndexOn{field.CapitalizedName}.Add(value, index);");
+    }
+
+    private static void GenerateAfterUpdateHook(StringBuilder sb, FieldModel field)
+    {
+        if (field.AfterUpdateMethod != null)
+            sb.AppendLine($"                {field.TableModel.QualifiedTypeName}.{field.AfterUpdateMethod.Name}(database, this, oldValue);");
     }
 }
