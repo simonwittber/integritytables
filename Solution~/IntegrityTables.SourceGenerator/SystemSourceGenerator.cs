@@ -58,7 +58,8 @@ public class SystemSourceGenerator
 
     private static void GenerateExecuteMethod(StringBuilder sb, DatabaseModel model, SystemModel system)
     {
-        sb.AppendLine($@"        public void Execute() {{
+        sb.AppendLine($@"        // {DatabaseSourceGenerator.GenerationStamp()}
+        public void Execute() {{
             Prepare();
             if(entities.Count > 500 && AllowThreadedExecution) 
                 ExecuteThreaded();
@@ -66,6 +67,7 @@ public class SystemSourceGenerator
                 ExecuteScalar();
         }} 
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public void Prepare()
         {{
             entities.Clear();");
@@ -108,24 +110,29 @@ public class SystemSourceGenerator
         sb.AppendLine(@$"        }}");
         sb.AppendLine();
         sb.AppendLine(@"        public void ExecuteThreaded()
-        {");
-        // Generate the method call
-        sb.AppendLine(@$"            Threaded.ForEach(0, entities.PageCount, (int start, int end) => {{
-                foreach(var entityId in entities.GetEnumeratorForPageRange(start, end)) {{");
-        
-                
+        {
+            var pages = ObjectPool<List<IntSet.BitEnumerator>>.Get();
+            pages.Clear();
+            foreach(var page in entities.Pages()) pages.Add(page);
+            Threaded.ForEach(0, pages.Count, (int start, int end) => {
+                for (int i = start; i < end; i++)
+                {
+                    var page = pages[i];
+                    foreach (var entityId in page)
+                    {");
         foreach (var param in system.Parameters)
         {
             {
-                sb.AppendLine($"                    var {param.name} = database.{param.tableModel.FacadeName}.GetByEntityId(entityId);");
+                sb.AppendLine($"                        var {param.name} = database.{param.tableModel.FacadeName}.GetByEntityId(entityId);");
             }           
         }
-        sb.AppendLine(@$"                   Execute({string.Join(", ", args)});");
-        sb.AppendLine(@$"               }}");
-        sb.AppendLine(@$"            }});");
-        sb.AppendLine(@$"        }}");
-
-                
-        
+        sb.AppendLine(@$"                       Execute({string.Join(", ", args)});
+                    }}
+                }}
+            }});
+            pages.Clear();
+            ObjectPool<List<IntSet.BitEnumerator>>.Return(pages);
+        }}
+        ");
     }
 }

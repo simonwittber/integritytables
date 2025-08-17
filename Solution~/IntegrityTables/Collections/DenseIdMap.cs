@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace IntegrityTables;
 
+
 /// <summary>
 /// A dynamic mapping from arbitrary int keys to dense 0-based IDs.
 /// </summary>
@@ -31,21 +32,6 @@ public class DenseIdMap : IDisposable
         // Round up to power of 2
         int capacity = 1;
         while (capacity < initialCapacity)
-            capacity <<= 1;
-
-        _keys = new int[capacity];
-        _values = new int[capacity];
-        _mask = capacity - 1;
-        _idToValue = new int[16];
-        _count = 0;
-        _deletedCount = 0;
-    }
-
-    public DenseIdMap()
-    {
-        // Round up to power of 2
-        int capacity = 1;
-        while (capacity < 16)
             capacity <<= 1;
 
         _keys = new int[capacity];
@@ -197,7 +183,7 @@ public class DenseIdMap : IDisposable
         while (true)
         {
             int stored = _values[idx];
-            if (stored == EMPTY) // Not found
+            if (stored == EMPTY) // ExceptWith found
                 return false;
 
             if (stored != DELETED && _keys[idx] == value) // Found existing (not deleted)
@@ -328,19 +314,5 @@ public class DenseIdMap : IDisposable
             _idToValue = null;
             _disposed = true;
         }
-    }
-
-    public void Clear()
-    {
-        Array.Clear(_keys, 0, _keys.Length);
-        Array.Clear(_values, 0, _values.Length);
-        Array.Clear(_idToValue, 0, _idToValue.Length);
-
-        _count = 0;
-        _deletedCount = 0;
-        _disposed = false;
-
-        // Reset mask
-        _mask = _keys.Length - 1;
     }
 }

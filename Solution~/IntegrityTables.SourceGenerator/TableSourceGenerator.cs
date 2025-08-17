@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using IntegrityTables.SourceGeneration.Model;
 using Microsoft.CodeAnalysis;
@@ -32,11 +31,12 @@ using System.Runtime.InteropServices;
         var addParams = string.Join(", ", constructorParams);
 
         sb.AppendLine($@"
-
+    // {DatabaseSourceGenerator.GenerationStamp()}
     public partial class {table.TypeName}Table : Table<{table.TypeName}>
     {{
         {model.TypeName} database;
-        
+
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public {table.TypeName}Table({model.TypeName} database)
         {{
             this.database = database;
@@ -55,6 +55,7 @@ using System.Runtime.InteropServices;
 
         public void Remove(int id) => _rowContainer.Get(id).Remove();
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public void Clear()
         {{
             foreach (var id in _rowContainer)
@@ -64,21 +65,28 @@ using System.Runtime.InteropServices;
 {ClearIndexes(table)}
         }}
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public ref {table.RowTypeName} Get(int id) 
         {{
             return ref _rowContainer.Get(id);
         }}
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public bool ContainsKey(int id) => _rowContainer.ContainsKey(id);
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public {table.RowTypeName} this[int id] => _rowContainer.Get(id);
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public Span<int> GetIdSpan() => new Span<int>(_rowContainer._ids, 0, _rowContainer._count);
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public {table.TypeName}RowContainer.Enumerator GetEnumerator() => _rowContainer.GetEnumerator();
         
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public Enumerator Rows => new Enumerator(_rowContainer);
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public struct Enumerator {{
             public ref {table.RowTypeName} Current => ref container.Get(index);
             int index;
@@ -105,6 +113,7 @@ using System.Runtime.InteropServices;
             }}
         }}
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public struct IndexEnumerator {{
             public ref {table.RowTypeName} Current => ref container.Get(index);
             int index;
@@ -205,14 +214,14 @@ using System.Runtime.InteropServices;
                 if(field.IsUnique)
                 {
                     sb.AppendLine($@"        internal readonly IntMap<int> _indexOn{field.CapitalizedName} = new();
-        public IReadOnlyIntMap<int> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};
+        public IntMap<int> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};
         public {table.RowTypeName} GetBy{field.CapitalizedName}(int value) => Get(_indexOn{field.CapitalizedName}[value]);
         public Span<int> Get{field.CapitalizedName}Span() => new Span<{field.QualifiedTypeName}>(_rowContainer._{field.Name}, 0, _rowContainer._count);");
                 }
                 else
                 {
                     sb.AppendLine($@"        internal readonly IntMap<IntSet> _indexOn{field.CapitalizedName} = new();
-        public IReadOnlyIntMap<IntSet> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};
+        public IntMap<IntSet> IndexOn{field.CapitalizedName} => _indexOn{field.CapitalizedName};
         public IndexEnumerator SelectBy{field.CapitalizedName}(int value) => new IndexEnumerator(_rowContainer, _indexOn{field.CapitalizedName}[value]);
         public Span<int> Get{field.CapitalizedName}Span() => new Span<{field.QualifiedTypeName}>(_rowContainer._{field.Name}, 0, _rowContainer._count);");
                 }
@@ -228,7 +237,10 @@ using System.Runtime.InteropServices;
         {
             if (field.IsUnique)
             {
-                sb.AppendLine($@"        internal readonly UniqueIndex<{field.QualifiedTypeName}> _uniqueIndexOn{field.CapitalizedName} = new();
+                sb.AppendLine($@"        // {DatabaseSourceGenerator.GenerationStamp()}
+        internal readonly UniqueIndex<{field.QualifiedTypeName}> _uniqueIndexOn{field.CapitalizedName} = new();
+        
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public bool TryGetBy{field.CapitalizedName} ({field.QualifiedTypeName} value, out {table.RowTypeName} row)
         {{
             if(_uniqueIndexOn{field.CapitalizedName}.TryGetValue(value, out var id))

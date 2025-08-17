@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Numerics;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 

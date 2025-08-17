@@ -1,5 +1,3 @@
-using IntegrityTables;
-
 namespace Tests;
 
 [TestFixture]

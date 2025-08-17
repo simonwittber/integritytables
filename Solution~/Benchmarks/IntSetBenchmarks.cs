@@ -1,6 +1,5 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using IntegrityTables;
 
 namespace IntegrityTables.Benchmarks;
 

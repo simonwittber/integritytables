@@ -97,6 +97,15 @@ public class Threaded
         }
     }
 
+    /// <summary>
+    /// Execute an action for each integer in the range [start, end) using multiple threads.
+    /// The action receives the start and end of each partition.
+    /// This method will partition the range into approximately equal parts based on the number of available processors
+    /// </summary>
+    /// <param name="start"></param>
+    /// <param name="end"></param>
+    /// <param name="action"></param>
+    /// <exception cref="ArgumentNullException"></exception>
     public static void ForEach(int start, int end, Action<int, int> action)
     {
         var partition = CreateBalancedPartitions(start, end, ProcessorCount);
@@ -118,5 +127,8 @@ public class Threaded
             DoneEvents[i].Reset();
         }
     }
+  
+
 }
+
 

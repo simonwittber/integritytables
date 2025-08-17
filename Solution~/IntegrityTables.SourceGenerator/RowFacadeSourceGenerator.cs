@@ -29,6 +29,7 @@ using IntegrityTables;
         private {table.TypeName}RowContainer container;
         private {model.TypeName} database;
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public {table.RowTypeName}(int index, {table.TypeName}RowContainer container, {model.TypeName} database)
         {{
             this.index = index;
@@ -38,29 +39,34 @@ using IntegrityTables;
 
 {GenerateRemoveMethod(context, table)}        
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         private void AddToIndex(IntMap<IntSet> index, int value, int id)
         {{
             if (!index.TryGetValue(value, out var set))
                 index[value] = set = new IntSet();
             set.Add(id);
         }}
-        
+
+        // {DatabaseSourceGenerator.GenerationStamp()}        
         private void RemoveFromIndex(IntMap<IntSet> index, int value, int id)
         {{
             if (index.TryGetValue(value, out var set))
                 set.Remove(id);
         }}
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         private void AddToIndex(IntMap<int> index, int value, int id)
         {{
             index[value] = id;
         }}
         
+        // {DatabaseSourceGenerator.GenerationStamp()}
         private void RemoveFromIndex(IntMap<int> index, int value, int id)
         {{
             index.Remove(value);
         }}
 
+        // {DatabaseSourceGenerator.GenerationStamp()}
         public int id => container._ids[index];
 
 {GeneratePropertyAccessors(context, table)}        
@@ -77,7 +83,8 @@ using IntegrityTables;
         var removeThrow = new StringBuilder();
         table.Dependencies.ForEach(dep => { removeThrow.AppendLine($"\n            if(database.{dep.TableModel.FacadeName}._indexOn{dep.CapitalizedName}.ContainsKey(id)) throw new InvalidOperationException($\"Cannot remove {table.RowTypeName} with id {{id}} because it is referenced by {dep.TableModel.FacadeName}.{dep.Name}\");"); });
         var sb = new StringBuilder();
-        sb.AppendLine($@"        public void Remove()
+        sb.AppendLine($@"        // {DatabaseSourceGenerator.GenerationStamp()}
+        public void Remove()
         {{
 {removeThrow}");
         foreach (var triggerModel in table.Triggers)
@@ -135,72 +142,7 @@ using IntegrityTables;
 
         return sb.ToString();
     }
-
-    private static string xGeneratePropertyAccessors(SourceProductionContext context, TableModel table)
-    {
-        var sb = new StringBuilder();
-        foreach (var field in table.Fields)
-        {
-            var checkReference = string.Empty;
-
-            if (field.IsReference)
-            {
-                if (!string.IsNullOrEmpty(field.PropertyName))
-                {
-                    sb.AppendLine($@"        public {field.ReferencedTableModel.RowTypeName} {field.PropertyName} => database.{field.ReferencedTableModel.FacadeName}[container._{field.Name}[index]];");
-                }
-
-                if (field.IsNotNull)
-                {
-                    checkReference = $@"                if(value < 0) throw new InvalidOperationException($""Cannot set {field.Name} to null, it is a non-nullable reference."");
-                if(oldValue == value) return;
-                if(!database.{field.ReferencedTableModel.FacadeName}.ContainsKey(value)) 
-                    throw new InvalidOperationException($""Row with id {{value}} does not exist in {field.ReferencedTableModel.FacadeName}."");
-                else 
-                {{
-                    RemoveFromIndex(database.{table.FacadeName}._indexOn{field.CapitalizedName}, oldValue, id);
-                    AddToIndex(database.{table.FacadeName}._indexOn{field.CapitalizedName}, value, id);
-                }}";
-                }
-                else
-                {
-                    checkReference = $@"                if(oldValue == value) return;
-                if(value >= 0) {{
-                    if(!database.{field.ReferencedTableModel.FacadeName}.ContainsKey(value)) 
-                        throw new InvalidOperationException($""Row with id {{value}} does not exist in {field.ReferencedTableModel.FacadeName}."");
-                    else 
-                    {{
-                        AddToIndex(database.{table.FacadeName}._indexOn{field.CapitalizedName}, value, id);
-                    }}
-                }}
-                if(oldValue >= 0) RemoveFromIndex(database.{table.FacadeName}._indexOn{field.CapitalizedName}, oldValue, id);";
-                }
-            }
-
-            sb.AppendLine(@$"        public {field.QualifiedTypeName} {field.Name}
-        {{
-            get => container._{field.Name}[index];
-            set 
-            {{
-                var oldValue = container._{field.Name}[index];
-{(string.IsNullOrEmpty(checkReference) ? "                if(oldValue == value) return;" : checkReference)}");
-            if (field.IsUnique)
-                sb.AppendLine(@$"                database.{field.TableModel.FacadeName}._uniqueIndexOn{field.CapitalizedName}.AssertDoesNotContain(value);");
-            if (field.BeforeUpdateMethod != null)
-                sb.AppendLine(@$"                {field.TableModel.QualifiedTypeName}.{field.BeforeUpdateMethod.Name}(database, this, value);");
-            sb.AppendLine(@$"                container._{field.Name}[index] = value;");
-            if (field.IsUnique)
-                sb.AppendLine(@$"                database.{field.TableModel.FacadeName}._uniqueIndexOn{field.CapitalizedName}.Add(value, index);");
-            if (field.AfterUpdateMethod != null)
-                sb.AppendLine(@$"                {field.TableModel.QualifiedTypeName}.{field.AfterUpdateMethod.Name}(database, this, oldValue);");
-            sb.AppendLine($@"
-            }}
-        }}");
-        }
-
-        return sb.ToString();
-    }
-
+    
     private static string GeneratePropertyAccessors(SourceProductionContext context, TableModel table)
     {
         var sb = new StringBuilder();
@@ -229,7 +171,8 @@ using IntegrityTables;
             sb.AppendLine($"        public ref {field.QualifiedTypeName} {field.Name} => ref container._{field.Name}[index];");
             return;
         }
-        
+
+        sb.AppendLine($"        // {DatabaseSourceGenerator.GenerationStamp()}");
         sb.AppendLine($"        public {field.QualifiedTypeName} {field.Name}");
         sb.AppendLine("        {");
         sb.AppendLine($"            get => container._{field.Name}[index];");

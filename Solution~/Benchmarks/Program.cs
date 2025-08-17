@@ -1,7 +1,6 @@
 ﻿using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Exporters.Json;
-using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 
 namespace IntegrityTables.Benchmarks

@@ -1,6 +1,3 @@
-using System.ComponentModel.Design;
-using IntegrityTables;
-
 namespace Tests;
 
 [TestFixture]

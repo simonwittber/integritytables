@@ -4,33 +4,22 @@ using System.Runtime.CompilerServices;
 
 namespace IntegrityTables;
 
-public interface IReadOnlyIntMap<T>
-{
-    int Count { get; }
-    IntMap<T>.ValueEnumerator Values { get; }
-    bool ContainsKey(int id);
-    bool TryGetValue(int v, out T value);
-    IntSet.Enumerator GetEnumerator();
-    T this[int v] { get; }
-    IReadOnlyIntSet Keys { get; }
-}
 
-public class IntMap<T> : IReadOnlyIntMap<T>
+public class IntMap<T>
 {
     private const int PageBits = 10;
     private const int PageSize = 1 << PageBits;
     private const int PageMask = PageSize - 1;
 
     private readonly List<T[]> _values = new List<T[]>();
-    private readonly IntSet _keys = new IntSet();
-
-    private int _initialKey;
-    private bool _isInitialized;
     
-    public IReadOnlyIntSet Keys => _keys;
+    private static void GetIndexAndSlot(int value, out int pageIndex, out int slot)
+    {
+        var key = ZigZagEncode(value);
+        pageIndex = (int)(key >> PageBits);
+        slot = (int)(key & PageMask);
+    }
     
-    public int Count { get; private set; }
-
     private void EnsurePage(int pageIndex)
     {
         while (_values.Count <= pageIndex)
@@ -40,6 +29,10 @@ public class IntMap<T> : IReadOnlyIntMap<T>
 
         _values[pageIndex] ??= new T[PageSize];
     }
+    
+    private readonly IntSet _keys = new IntSet();
+
+    public int Count { get; private set; }
 
     public void EnsureCapacity(int items)
     {
@@ -49,9 +42,7 @@ public class IntMap<T> : IReadOnlyIntMap<T>
     public bool Remove(int v)
     {
         if (!_keys.Remove(v)) return false;
-        var u = ZigZagEncode(v - _initialKey);
-        var pageIndex = (int) (u >> PageBits);
-        var slot = (int) (u & PageMask);
+        GetIndexAndSlot(v, out var pageIndex, out var slot);
         _values[pageIndex]![slot] = default(T)!;
         Count--;
         return true;
@@ -63,9 +54,7 @@ public class IntMap<T> : IReadOnlyIntMap<T>
     {
         if (_keys.Contains(v))
         {
-            var key = ZigZagEncode(v - _initialKey);
-            var pageIndex = (int)(key >> PageBits);
-            var slot = (int)(key & PageMask);
+            GetIndexAndSlot(v, out var pageIndex, out var slot);
             value = _values[pageIndex]![slot];
             return true;
         }
@@ -93,25 +82,18 @@ public class IntMap<T> : IReadOnlyIntMap<T>
         {
             if (!_keys.Contains(v))
                 throw new KeyNotFoundException();
-            var key = ZigZagEncode(v - _initialKey);
-            var pageIndex = (int)(key >> PageBits);
-            var slot = (int)(key & PageMask);
+            GetIndexAndSlot(v, out int pageIndex, out var slot);
             return _values[pageIndex]![slot];
         }
         set
         {
-            _initialKey = _isInitialized ? _initialKey : v;
-            _isInitialized = true;
-            var key = ZigZagEncode(v - _initialKey);
-            var pageIndex = (int)(key >> PageBits);
+            GetIndexAndSlot(v, out int pageIndex, out var slot);
             EnsurePage(pageIndex);
-            var slot = (int)(key & PageMask);
             _values[pageIndex]![slot] = value;
             if (_keys.Add(v))
                 Count++;
         }
     }
-
 
     public void Clear()
     {
@@ -123,15 +105,12 @@ public class IntMap<T> : IReadOnlyIntMap<T>
             }
         }
 
-        _isInitialized = false;
-        _initialKey = 0;
         Count = 0;
         _keys.Clear();
     }
 
-    public IntSet.Enumerator GetEnumerator() => _keys.GetEnumerator();
-
     public ValueEnumerator Values => new ValueEnumerator(this);
+    public IntSet Keys => _keys;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static uint ZigZagEncode(int v) => ((uint) (v << 1)) ^ ((uint) (v >> 31));
