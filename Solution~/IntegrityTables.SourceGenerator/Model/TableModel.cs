@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,6 +8,8 @@ namespace IntegrityTables.SourceGeneration.Model;
 public class TableModel
 {
     public INamedTypeSymbol TableSymbol;
+
+    public string RowTypeName => $"{TypeName}Row";
 
     public string GroupName;
 
@@ -129,18 +130,8 @@ public class TableModel
         {
             if (TableSymbol.ContainingNamespace.IsGlobalNamespace)
                 return "";
-            var tableNameSpace = TableSymbol.ContainingNamespace.Name;
-            var modelNameSpace = DatabaseModel.DatabaseSymbol.ContainingNamespace.Name;
-            if (tableNameSpace == modelNameSpace)
-            {
-                return "";
-            }
-
-            if (tableNameSpace.StartsWith(modelNameSpace))
-            {
-                return $"{tableNameSpace.Substring(modelNameSpace.Length + 1)}.";
-            }
-            return $"{tableNameSpace}.";
+            
+            return $"{NameSpace}.";
             
         }
     }

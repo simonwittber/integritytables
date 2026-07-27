@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -22,38 +21,21 @@ public partial class DatabaseSourceGenerator : IIncrementalGenerator
     private const string SystemAttributeName = "GenerateSystemAttribute";
 
 
-    private void GenerateDatabaseCode(SourceProductionContext context, ISymbol databaseClass, ImmutableArray<INamedTypeSymbol> _tablestructs, ImmutableArray<INamedTypeSymbol> serviceClasses, ImmutableArray<INamedTypeSymbol> systemClasses)
+    private void GenerateDatabaseCode(SourceProductionContext context, Compilation compilation, ISymbol databaseClass, ImmutableArray<INamedTypeSymbol> _tablestructs, ImmutableArray<INamedTypeSymbol> systemClasses)
     {
         var uniqueTableStructs = _tablestructs
             .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
             .ToImmutableArray();
-
-        var uniqueServiceClasses = serviceClasses
-            .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
-            .ToImmutableArray();
-
+        
         var uniqueSystemClasses = systemClasses
             .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
             .ToImmutableArray();
-
-
-        var model = ModelBuilder.Build(context, (INamedTypeSymbol) databaseClass, uniqueTableStructs, uniqueServiceClasses, uniqueSystemClasses);
+        var model = ModelBuilder.Build(context, compilation, (INamedTypeSymbol) databaseClass, uniqueTableStructs, uniqueSystemClasses);
         // DbmlBuilder.Build(context, model);
         // MermaidBuilder.Build(context, model);
-        TableSourceGenerator.GenerateCode(context, model);
         RowContainerSourceGenerator.GenerateCode(context, model);
-        TableIndexSourceGenerator.GenerateCode(context, model);
-        ServiceSourceGenerator.GenerateCode(context, model);
         // PersistenceSourceGenerator.GenerateCode(context, model);
-        ViewModelSourceGenerator.GenerateCode(context, model);
         SystemSourceGenerator.GenerateCode(context, model);
-        // EntityExtensionsGenerator.GenerateCode(context, model);
-        if (model.GenerateForUnity)
-        {
-            ScriptableObjectSourceGenerator.GenerateScriptableDatabaseCode(context, model);
-            ScriptableObjectSourceGenerator.GenerateScriptableViewCode(context, model);
-            ScriptableObjectSourceGenerator.GenerateScriptableRowCode(context, model);
-        }
         
         var sb = new StringBuilder();
 
@@ -75,16 +57,12 @@ using IntegrityTables;
     // {DatabaseSourceGenerator.GenerationStamp()}
     public partial class {model.DatabaseSymbol.Name} : IDatabase
     {{
-
         public IPersistence Persistence {{ get; set; }}
 
 #region Tables
     // {DatabaseSourceGenerator.GenerationStamp()}
 {BuildTableProperties(model)}
-    // {DatabaseSourceGenerator.GenerationStamp()}
-{BuildIndexProperties(model)}
 #endregion
-
        
         private ITable[] _tables;
         public ITable[] Tables => _tables;
@@ -108,9 +86,6 @@ using IntegrityTables;
         public {model.DatabaseSymbol.Name}()
         {{
             InitializeTables();
-            InitializeTriggers();
-            InitializeUniqueIndexes();
-            InitializeConstraints();
 {BuildDefaultDataAndOnLoadTablesMethodCalls(model)}
         }}
 
@@ -119,31 +94,21 @@ using IntegrityTables;
         private void InitializeTables() {{
 {BuildInitializeTables(model)}
 
-{BuildInitializeIndexes(model)}
-            _tables = new ITable[] {{ {string.Join(", ", model.Tables.Select(i => i.FieldName))} }};
+            _tables = new ITable[] {{ {string.Join(", ", model.Tables.Select(i => i.FacadeName))} }};
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
         private void InitializeUniqueIndexes() {{
-{BuildInitializeUniqueIndexes(model)}
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
         private void InitializeTriggers() {{
-{BuildInitializeTriggers(model)}
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
         private void InitializeConstraints() {{
-{BuildInitializeConstraints(model)}
         }}
 #endregion
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public ChangeSet NewChangeSet()
-        {{
-            return new ChangeSet(_tables);
-        }}
 
 #region validation
         // {DatabaseSourceGenerator.GenerationStamp()}
@@ -153,20 +118,7 @@ using IntegrityTables;
         public void ValidateIntegrity() {{
 {GenerateValidatorMethod(model)}
         }}
-#endregion
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        /// <summary>
-        /// This 'scope' is used to create a context for rows which do not hold a reference to the database.
-        /// This allows Row<T> to be a small as possible, which is important for performance and memory usage, but still allow
-        /// the convenient extension methods we generate for Row<T>.
-        /// The 'scope' is a fake singleton, that becomes null when the scope is disposed. This gives us a way to
-        /// to have the convenience of a singleton, while minimizing the danger of using a singleton in a multithreaded environment
-        /// and the potential problems with unit testing when using static singletons.
-        /// </summary>
-        public Context<{model.QualifiedTypeName}> CreateContext() {{
-            return new Context<{model.QualifiedTypeName}>(this);
-        }}
+#endregion    
 
         public struct Enumerator : IEnumerator<ITable>
         {{
@@ -202,12 +154,6 @@ using IntegrityTables;
             return new Enumerator(_tables);
         }}
     }}
-    
-    //  {DatabaseSourceGenerator.GenerationStamp()}
-    public static class {model.DatabaseSymbol.Name}DatabaseScopeExtension {{
-{BuildContextExtensionMethods(model)}
-{BuildReverseContextExtensionMethods(model)}
-    }}
 
 ");
         if (!string.IsNullOrEmpty(model.NameSpace)) sb.AppendLine("}");
@@ -215,7 +161,7 @@ using IntegrityTables;
         context.AddSource($"{model.FileName("Database", "")}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
 
         // This outputs different partial class files.
-        BuildReferentialIntegrityMethods(context, model);
+        // BuildReferentialIntegrityMethods(context, model);
     }
 
     public static string GenerationStamp([CallerFilePath] string filePath = "", [CallerLineNumber] int lineNumber = 0)
@@ -229,7 +175,7 @@ using IntegrityTables;
         var sb = new StringBuilder();
         foreach (var table in model.Tables)
         {
-            sb.AppendLine($@"            Persistence.LoadTable<{table.QualifiedTypeName}>(this.{table.FieldName});");
+            sb.AppendLine($@"            //Persistence.LoadTable<{table.QualifiedTypeName}>(this.{table.FieldName});");
         }
 
         return sb.ToString();
@@ -240,7 +186,7 @@ using IntegrityTables;
         var sb = new StringBuilder();
         foreach (var table in model.Tables)
         {
-            sb.AppendLine($@"            Persistence.SaveTable<{table.QualifiedTypeName}>(this.{table.FieldName});");
+            sb.AppendLine($@"            //Persistence.SaveTable<{table.QualifiedTypeName}>(this.{table.FieldName});");
         }
 
         return sb.ToString();
@@ -303,237 +249,19 @@ using IntegrityTables;
         return sb.ToString();
     }
 
-    private string GenerateLoadDefaultDataMethod(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        if (model.Tables.Any(i => i.DefaultDataMethods.Count > 0))
-        {
-            sb.AppendLine(@"            var type = typeof(T);
-            switch(typeof(T)) {");
-            foreach (var table in model.Tables)
-            {
-                if (table.DefaultDataMethods.Count > 0)
-                    sb.AppendLine(@$"               case var _ when type == typeof({table.QualifiedTypeName}): 
-                foreach(var row in {table.FieldName}.GetDefaultData()) {table.FacadeName}.Add(row);
-                break;");
-            }
-
-            sb.AppendLine("            }");
-        }
-
-        return sb.ToString();
-    }
-
     private string BuildInitializeTables(DatabaseModel model)
     {
         return string.Join("\n", model.Tables.Select(BuildInitializeTable));
 
         string BuildInitializeTable(TableModel table)
         {
-            return $"            this.{table.FieldName} = new Table<{table.QualifiedTypeName}>(rowContainer:new {table.TypeName}RowContainer({table.Capacity})) {{ Metadata = new {table.QualifiedTypeName}Metadata() }};";
+            return $"            this.{table.FacadeName} = new {table.TypeName}Table(this);";
         }
-    }
-
-    private string BuildInitializeIndexes(DatabaseModel model)
-    {
-        return string.Join("\n", model.Tables.Select(BuildInitializeTable));
-
-        string BuildInitializeTable(TableModel table)
-        {
-            return $"            this.{table.FacadeName}Index = new {table.QualifiedTypeName}TableIndex({table.FieldName}, {table.Capacity});";
-        }
-    }
-
-    private string BuildInitializeUniqueIndexes(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        foreach (var table in model.Tables)
-        {
-            foreach (var indexName in table.UniqueIndexes.Keys)
-            {
-                var fields = table.UniqueIndexes[indexName];
-                var fieldNames = fields.Select(f => $"row.data.{f.FieldSymbol.Name}");
-                var fieldTypes = string.Join(",", fields.Select(f => $"{f.FieldSymbol.Type.ToDisplayString()}"));
-                var keyType = $"ValueTuple<{fieldTypes}>";
-
-                var getFieldsAction = $"(in Row<{table.QualifiedTypeName}> row) => new {keyType}({string.Join(",", fieldNames)})";
-                sb.AppendLine($"            this.{table.FieldName}.AddUniqueIndex<{keyType}>(\"{indexName}\", {getFieldsAction});");
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private string BuildInitializeConstraints(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        foreach (var table in model.Tables)
-        {
-            foreach (var field in table.Fields)
-            {
-                if (field.IsNotNull)
-                    sb.AppendLine($"            this.{table.FieldName}.AddConstraint((in Row<{table.QualifiedTypeName}> row) => row.data.{field.Name} != 0, \"{field.Name} is null\");");
-            }
-
-            foreach (var constraintMethod in table.ConstraintMethods)
-            {
-                sb.AppendLine($"            this.{table.FieldName}.AddConstraint({table.QualifiedTypeName}.{constraintMethod}, \"Check: {constraintMethod}\");");
-            }
-        }
-
-        foreach (var manyToManyModel in model.ManyToManyModels)
-        {
-            if (manyToManyModel.IsSymmetricJunction)
-            {
-                var table = manyToManyModel.TableModel;
-                var fields = manyToManyModel.Fields;
-                //Add a constraint so that field 0 is always the smaller ID
-                sb.AppendLine($"            this.{table.FieldName}.AddConstraint((in Row<{table.QualifiedTypeName}> row) => row.data.{fields[0].Name} > row.data.{fields[1].Name}, \"{fields[1].Name} must be less than {fields[0].Name}\");");
-                //Add a trigger to swap the fields if they are not in order
-                sb.AppendLine($"            this.{table.FieldName}.BeforeAdd += (ref Row<{table.QualifiedTypeName}> row) => {{ if(row.data.{fields[0].Name} < row.data.{fields[1].Name}) (row.data.{fields[0].Name}, row.data.{fields[1].Name}) = (row.data.{fields[1].Name}, row.data.{fields[0].Name}); }};");
-            }
-        }
-
-        return sb.ToString();
     }
 
     private string BuildTableProperties(DatabaseModel model)
     {
-        return string.Join("\n", model.Tables.Select(t => $"        private Table<{t.QualifiedTypeName}> {t.FieldName} {{ get; set; }}"));
-    }
-
-    private string BuildIndexProperties(DatabaseModel model)
-    {
-        return string.Join("\n", model.Tables.Select(t => $"        public {t.QualifiedTypeName}TableIndex {t.FacadeName}Index {{ get; private set; }}"));
-    }
-
-    private string BuildInitializeTriggers(DatabaseModel model)
-    {
-        var lines = new List<string>();
-        foreach (var tableModel in model.Tables)
-        {
-            lines.Add($"            // {DatabaseSourceGenerator.GenerationStamp()}");
-            lines.Add($"            // Initialize referential validation callbacks for {tableModel.TypeName}");
-            lines.Add($"            {tableModel.FacadeName}.ValidateForAdd = CheckReferentialIntegrityOn{tableModel.TypeName};");
-            lines.Add($"            {tableModel.FacadeName}.ValidateForUpdate = CheckReferentialIntegrityOnModifiedFieldsOn{tableModel.TypeName};");
-            lines.Add($"            {tableModel.FacadeName}.ExecuteCascadingRemove = ExecuteCascadingRemove{tableModel.TypeName}Row;");
-            var tf = tableModel.FieldName;  // e.g. "OrderTable"
-            
-
-            foreach (var triggerModel in tableModel.Triggers)
-            {
-                var parameters = string.Join(", ", Enumerable.Range(0, triggerModel.RefKinds.Length).Select(i => $"{triggerModel.RefKinds[i].ToString().ToLower()} Row<{tableModel.QualifiedTypeName}> row{i}"));
-                var arguments = string.Join(", ", Enumerable.Range(0, triggerModel.RefKinds.Length).Select(i => $"{triggerModel.RefKinds[i].ToString().ToLower()} row{i}"));
-                if (triggerModel.IsFieldTrigger)
-                {
-                    var changedField = triggerModel.FieldName;
-                    var predicate = $"if(row0.data.{changedField} != row1.data.{changedField})";
-                    lines.Add($"            // this is a field level trigger for '{tableModel.TypeName}.{changedField}'");
-                    lines.Add($"            {tableModel.FieldName}.{triggerModel.EventName} += ({parameters}) => {{ {predicate} {tableModel.QualifiedTypeName}.{triggerModel.Method.Name}(this, {arguments}); }};");
-                }
-                else
-                {
-                    lines.Add($"            // this is a row level trigger for '{tableModel.TypeName}'");
-                    lines.Add($"            {tableModel.FieldName}.{triggerModel.EventName} += ({parameters}) => {tableModel.QualifiedTypeName}.{triggerModel.Method.Name}(this, {arguments});");
-                }
-            }
-            
-            foreach (var fieldModel in tableModel.Fields)
-            {
-                if (fieldModel.ValidatorModel != null)
-                {
-                    lines.Add($"            {tf}.BeforeAdd += (-5, ((ref Row<{tableModel.TypeName}> row) => row.data.{fieldModel.ValidatorModel.MethodSymbol.Name}()));");
-                    lines.Add($"            {tf}.BeforeUpdate += (-5, ((in Row<{tableModel.TypeName}> oldRow, ref Row<{tableModel.TypeName}> newRow) => {{ if(newRow.data.{fieldModel.Name} != oldRow.data.{fieldModel.Name}) newRow.data.{fieldModel.ValidatorModel.MethodSymbol.Name}(); }}));");
-                }
-                if (fieldModel.IsImmutable)
-                {
-                    lines.Add($"            {tf}.BeforeUpdate += (1000, ((in Row<{tableModel.TypeName}> oldRow, ref Row<{tableModel.TypeName}> newRow) => {{ if(newRow.data.{fieldModel.Name} != oldRow.data.{fieldModel.Name}) throw new InvalidOperationException(\"Cannot modify Immutable field '{fieldModel.Name}'\"); }}));");           
-                }
-                if (fieldModel.IsComputed)
-                {
-                    lines.Add($"            {tf}.BeforeAdd += (999, ((ref Row<{tableModel.TypeName}> row) => {{ if(row.data.{fieldModel.Name} != default) throw new InvalidOperationException(\"Cannot modify Immutable field '{fieldModel.Name}'\"); }}));");
-                    lines.Add($"            {tf}.BeforeUpdate += (999, ((in Row<{tableModel.TypeName}> oldRow, ref Row<{tableModel.TypeName}> newRow) => {{ if(newRow.data.{fieldModel.Name} != oldRow.data.{fieldModel.Name}) throw new InvalidOperationException(\"Cannot modify Computed field '{fieldModel.Name}'\"); }}));");
-                    lines.Add($"            {tf}.BeforeAdd += (1000, (ref Row<{tableModel.TypeName}> row) => row.data.{fieldModel.Name} = {tableModel.TypeName}.Compute_{fieldModel.Name}(this, row));");
-                    lines.Add($"            {tf}.BeforeUpdate += (1000, (in Row<{tableModel.TypeName}> oldRow, ref Row<{tableModel.TypeName}> newRow) => newRow.data.{fieldModel.Name} = {tableModel.TypeName}.Compute_{fieldModel.Name}(this, newRow));");
-                }
-
-                if (fieldModel.IsReference && fieldModel.CreateIfMissing)
-                {
-                    // Auto create records, usually an entity, if they are not set.
-                    lines.Add($"            {tf}.BeforeAdd += (-10, ((ref Row<{tableModel.TypeName}> row) => {{ if(row.data.{fieldModel.Name} == 0) row.data.{fieldModel.Name} = {fieldModel.ReferencedTableModel.FacadeName}.Add(new {fieldModel.ReferencedTableModel.QualifiedTypeName}()).id; }}));");
-                }
-                // if this field is a reference to a component table, and the targetTable entityId is marked unique, it is safe to lookup
-                // an existing row using the trigger.
-                if (fieldModel.IsComponentReference && fieldModel.ReferencedTableModel[fieldModel.EntityReferenceField.Name].IsUnique)
-                {
-                    if (fieldModel.IsNotNull)
-                    {
-                        lines.Add(@$"            {tf}.BeforeAdd += (-9, ((ref Row<{tableModel.TypeName}> row) => 
-            {{
-                if(row.data.{fieldModel.Name} == 0) // if not set, try and find matching row
-                    {fieldModel.ReferencedTableModel.FacadeName}Index.TryGetBy{fieldModel.EntityReferenceField.CapitalizedName}(row.data.{fieldModel.EntityReferenceField.Name}, out row.data.{fieldModel.Name});
-                if(row.data.{fieldModel.Name} == 0) // if still not set, create a new row, because this is a not null field.
-                    row.data.{fieldModel.Name} = {fieldModel.ReferencedTableModel.FacadeName}.Add(new {fieldModel.ReferencedTableModel.QualifiedTypeName}() {{ {fieldModel.EntityReferenceField.Name}=row.data.{fieldModel.EntityReferenceField.Name} }}).id;
-            }}));");                        
-                    }
-                    else
-                    {
-                        lines.Add(@$"            {tf}.BeforeAdd += (-9, ((ref Row<{tableModel.TypeName}> row) => 
-            {{
-                if(row.data.{fieldModel.Name} == 0) // if not set, try and find matching row
-                    {fieldModel.ReferencedTableModel.FacadeName}Index.TryGetBy{fieldModel.EntityReferenceField.CapitalizedName}(row.data.{fieldModel.EntityReferenceField.Name}, out row.data.{fieldModel.Name}); 
-            }}));");
-                    }
-                }
-            }
-        }
-
-        return string.Join("\n", lines);
-    }
-
-    private string BuildReverseContextExtensionMethods(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        foreach (var table in model.Tables)
-        {
-            // kv.Key is the referenced type, e.g. Department
-            foreach (var field in table.Dependencies)
-            {
-                if (field.CollectionName == null) continue;
-                if (field.TableModel.IsManyToMany) continue;
-                // refTable is the struct that has a Department_id field, e.g. Employee
-                var refTableName = field.TableModel.QualifiedTypeName;
-                sb.AppendLine($@"
-        /// <summary>
-        ///  Fetch all <see cref=""Row`{refTableName}`""/> where `{field.FieldSymbol.Name}` is the id of this `{table.QualifiedTypeName}`.
-        /// </summary>
-        public static ObservableList<int> {field.CollectionName}(this in Row<{table.QualifiedTypeName}> row)
-        {{
-            var db = Context<{model.DatabaseSymbol.Name}>.Current;
-            var id = row.id;
-            return db.{field.TableModel.FacadeName}Index.SelectBy{field.CapitalizedName}(row.id);
-        }}");
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private string BuildContextExtensionMethods(DatabaseModel model)
-    {
-        var sb = new StringBuilder();
-        foreach (var table in model.Tables)
-        {
-            BuildOneToManyExtensions(model, table, sb);
-            BuildEntityExtensionMethods(model, table, sb);
-            BuildQueryPropertyExtensionMethods(model, table, sb);
-        }
-
-        foreach (var manyToMany in model.ManyToManyModels)
-        {
-            BuildManyToManyExtensions(model, manyToMany, sb);
-        }
-        return sb.ToString();
+        return string.Join("\n", model.Tables.Select(t => $"        public {t.TypeName}Table {t.FacadeName} {{ get; private set; }}"));
     }
 
     private string GenerateValidatorMethod(DatabaseModel model)
@@ -549,15 +277,17 @@ using IntegrityTables;
                 if (!field.IsReference) continue;
                 addCheck = true;
                 var referencedTableModel = field.ReferencedTableModel;
-                var errorMessage = $"{tableName}.{field.FieldSymbol.Name} ({{row.data.{field.FieldSymbol.Name}}}) is not a valid reference to {referencedTableModel.QualifiedTypeName}";
-                fieldChecks.AppendLine($@"                if(row.data.{field.FieldSymbol.Name} != 0 && !{referencedTableModel.FieldName}.ContainsKey(row.data.{field.FieldSymbol.Name})) 
-                    Warnings.Warn($""{errorMessage}"");");
+                var errorMessage = $"{tableName}.{field.FieldSymbol.Name} ({{row.{field.FieldSymbol.Name}}}) is not a valid reference to {referencedTableModel.QualifiedTypeName}";
+                if(field.IsNotNull)
+                    fieldChecks.AppendLine($@"                if(!{referencedTableModel.FacadeName}.ContainsKey(row.{field.FieldSymbol.Name})) Warnings.Warn($""{errorMessage}"");");
+                else
+                    fieldChecks.AppendLine($@"                if(row.{field.FieldSymbol.Name} >= 0 && !{referencedTableModel.FacadeName}.ContainsKey(row.{field.FieldSymbol.Name})) Warnings.Warn($""{errorMessage}"");");
             }
 
             if (addCheck)
-                sb.AppendLine($@"            foreach (var id in this.{table.FieldName}) 
+                sb.AppendLine($@"            foreach (var id in this.{table.FacadeName}) 
             {{
-                var row = this.{table.FieldName}.Get(id);
+                var row = this.{table.FacadeName}.Get(id);
 {fieldChecks}                    
             }}");
         }
@@ -576,18 +306,13 @@ using IntegrityTables;
             .Select((t, _) => (INamedTypeSymbol) t.symbol)
             .Collect();
 
-        var serviceClassesProvider = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                (s, _) => s is ClassDeclarationSyntax,
-                (ctx, _) => GetClassWithServiceAttribute(ctx))
-            .Where(t => t.hasServiceAttribute)
-            .Select((t, _) => (INamedTypeSymbol) t.symbol)
-            .Collect();
-
         var systemClassesProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
                 (s, _) => s is ClassDeclarationSyntax,
-                (ctx, _) => GetClassWithSystemAttribute(ctx))
+                (ctx, _) =>
+                {
+                    return GetClassWithSystemAttribute(ctx);
+                })
             .Where(t => t.hasSystemAttribute)
             .Select((t, _) => (INamedTypeSymbol) t.symbol)
             .Collect();
@@ -602,11 +327,11 @@ using IntegrityTables;
 
         //     
         // Generate the source code
-        var allInputs = databaseClassesProvider.Combine(tableStructsProvider).Combine(serviceClassesProvider).Combine(systemClassesProvider);
+        var allInputs = databaseClassesProvider.Combine(tableStructsProvider).Combine(systemClassesProvider).Combine(context.CompilationProvider);
         context.RegisterSourceOutput(allInputs, (ctx, source) =>
         {
-            var (((dbClass, tableStructs), services), systems) = source;
-            GenerateDatabaseCode(ctx, dbClass, tableStructs, services, systems);
+            var (((dbClass, tableStructs), systems), compilation) = source;
+            GenerateDatabaseCode(ctx, compilation, dbClass, tableStructs, systems);
         });
     }
 
@@ -624,26 +349,6 @@ using IntegrityTables;
                 return (structSymbol, true);
 
         return (structSymbol, false);
-    }
-
-    private static (ISymbol symbol, bool hasServiceAttribute) GetClassWithServiceAttribute(GeneratorSyntaxContext context)
-    {
-        var declaration = (ClassDeclarationSyntax) context.Node;
-        var semanticModel = context.SemanticModel;
-        var symbol = semanticModel.GetDeclaredSymbol(declaration);
-        if (symbol.ToDisplayString().Contains("ViewService"))
-        {
-            ;
-        }
-
-        if (symbol == null)
-            return (null, false);
-
-        foreach (var attribute in symbol.GetAttributes())
-            if (attribute.AttributeClass?.ToDisplayString() == $"{Namespace}.{ServiceAttributeName}")
-                return (symbol, true);
-
-        return (symbol, false);
     }
 
     private static (ISymbol symbol, bool hasSystemAttribute) GetClassWithSystemAttribute(GeneratorSyntaxContext context)

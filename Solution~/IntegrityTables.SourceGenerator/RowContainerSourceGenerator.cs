@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using IntegrityTables.SourceGeneration.Model;
 using Microsoft.CodeAnalysis;
@@ -12,7 +13,8 @@ public class RowContainerSourceGenerator
         foreach (var table in model.Tables)
         {
             GenerateRowContainer(context, model, table);
-            GenerateRowContainerFacade(context, model, table);
+            RowFacadeSourceGenerator.GenerateCode(context, model, table);
+            TableSourceGenerator.GenerateCode(context, model, table);
         }
     }
 
@@ -23,463 +25,188 @@ public class RowContainerSourceGenerator
 
 using System;
 using IntegrityTables;
+using System.Runtime.CompilerServices;
 ");
         if (!string.IsNullOrEmpty(table.NameSpace))
         {
             sb.AppendLine($"namespace {table.NameSpace}");
             sb.AppendLine("{");
         }
-
+        var constructorParams = new List<string>();
+        foreach (var field in table.Fields)
+        {
+            constructorParams.Add($"{field.QualifiedTypeName} {field.Name} = default");
+        }
+        var addParams = string.Join(", ", constructorParams);
+        
         sb.AppendLine($@"
     // {DatabaseSourceGenerator.GenerationStamp()}
-    public class {table.TypeName}RowContainer : IRowContainer<{table.TypeName}>
+    public class {table.TypeName}RowContainer : IRowContainer
     {{
-        public event Action<int, TableOperation> OnRowModified;
-        public int Version => _version;
-        int _version = 0;
+        internal const byte DELETED = 0b1;
+        internal const byte MODIFIED = 0b10;
+        internal const byte ADDED = 0b10;
 
-        internal {table.TypeName}RowFacade[] _facades = Array.Empty<{table.TypeName}RowFacade>();
-        internal int[] ids = Array.Empty<int>();
-        internal int[] versions = Array.Empty<int>();
+        public int Version => _version;
+
+        internal Stack<int> _freeSlots = new Stack<int>();
+        private int _version = 0;
+        internal {table.RowTypeName}[] _facades = Array.Empty<{table.RowTypeName}>();
+        internal byte[] _flags = Array.Empty<byte>();
+        internal int[] _ids = Array.Empty<int>();
 {GenerateFields(context, table)}        
-        internal int count;
-        private IdMap _idToIndex;
+        internal int _count;
+
+        {model.TypeName} _database;
  
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public {table.TypeName}RowContainer(int _initialRowCapacity=4096)
+        public {table.TypeName}RowContainer({model.TypeName} database)
         {{
-            this.count = 0;
-            this._idToIndex = new IdMap(_initialRowCapacity);
-            _facades = new {table.TypeName}RowFacade[_initialRowCapacity];
-            ids = new int[_initialRowCapacity];
-            versions = new int[_initialRowCapacity];
-{ConstructFields(context, table)}            
+            this._database = database;
+            var _initialRowCapacity = 16;
+            _count = 0;
+            _facades = new {table.RowTypeName}[_initialRowCapacity];
+            _flags = new byte[_initialRowCapacity];
+            _ids = new int[_initialRowCapacity];
+{ConstructFields(context, table)}
+{ClearIdArrays(context, table)}                      
         }}
         
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public int Count => count;
+        public int Count => _count - _freeSlots.Count;
+
+        public int Capacity => _facades.Length;
         
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public bool ContainsKey(int id) => _idToIndex.ContainsKey(id);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool ContainsKey(int id) => id >= 0 && id < _flags.Length && !IsEmpty(id);
 
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public bool TryGetIndexForId(int id, out int index) => _idToIndex.TryGetValue(id, out index);
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public bool TryGetIdForIndex(int index, out int id)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int Add({addParams})
         {{
-            if (index < 0 || index >= count) 
+            int slot;
+            if(!_freeSlots.TryPop(out slot))
             {{
-                id = default;
-                return false;
+                if (_count == _flags.Length) Resize(_count * 2);
+                slot = _count++;
             }}
-            id = ids[index];
-            return true;
+            _ids[slot] = slot;
+            var facade = _facades[slot] = new {table.RowTypeName}(slot, this, _database);
+            try {{
+{AssignFacadeFields(context, table)}
+            }} catch(InvalidOperationException) {{
+                _count--;
+                throw;
+            }}
+            _flags[slot] = ADDED;
+            return slot;
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public int GetIndexForId(int id) => _idToIndex[id];
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool IsEmpty(int index) => _flags[index] == 0b0 || HasFlag(index, DELETED);
 
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public Row<{table.TypeName}> Get(Row<{table.TypeName}> row)
-        {{
-            return this[GetIndexForId(row.id)];
-        }}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void SetFlag(int index, byte flag) => _flags[index] |= flag;
 
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public void Set(ref Row<{table.TypeName}> row)
-        {{
-            row._index = GetIndexForId(row.id);
-            this[row._index] = row;
-            OnRowModified?.Invoke(row._index, TableOperation.Update);
-        }}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool HasFlag(int index, byte flag) => (_flags[index] & flag) != 0;
 
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public void Add(ref Row<{table.TypeName}> row)
-        {{
-            if (count == ids.Length)
-                Resize(count * 2);
-            int slot = count++;
-            row._index = slot;
-            _facades[slot] = new {table.TypeName}RowFacade(slot, this);
-            ids[slot] = row.id;
-            versions[slot] = row._version;
-{AssignArrays(context, table)}
-            _idToIndex[row.id] = slot;
-            _version++;
-            OnRowModified?.Invoke(slot, TableOperation.Add);
-        }}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ClearFlag(int index, int flag) => _flags[index] &= (byte)~(flag);
+        
+        // {DatabaseSourceGenerator.GenerationStamp()}
+        public void ClearAllFlags() => Array.Clear(_flags, 0, _count);
 
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public void Remove(in Row<{table.TypeName}> row)
+        private void Resize(int _initialRowCapacity)
         {{
-            int slot = _idToIndex[row.id];
-            int last  = count - 1;
-            _version++;
-
-            // pull last row’s data into this slot:
-            ids[slot] = ids[last];
-            versions[slot] = versions[last];
-{CopyLastRow(context, table)}
-            int movedId = ids[slot];
-            _idToIndex[movedId] = slot;
-            
-            versions[last] = 0; // clear version of last row
-{ClearLastRow(context, table)}
-            _idToIndex.Remove(row.id);
-
-            count--;
-            if (slot != last)
-                OnRowModified?.Invoke(slot, TableOperation.Update);
-            OnRowModified?.Invoke(last, TableOperation.Remove);
-        }}
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        internal void SetVersion(int index, int version)
-        {{
-            versions[index] = version;
-            OnRowModified?.Invoke(index, TableOperation.Update);
-        }}
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        void Resize(int _initialRowCapacity)
-        {{
-            if (_initialRowCapacity <= ids.Length) return;
+            if (_initialRowCapacity <= _flags.Length) return;
             Array.Resize(ref _facades, _initialRowCapacity);
-            Array.Resize(ref ids, _initialRowCapacity);
-            Array.Resize(ref versions, _initialRowCapacity);
+            Array.Resize(ref _flags, _initialRowCapacity);
+            Array.Resize(ref _ids, _initialRowCapacity);
 {ResizeArrays(context, table)}            
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public Row<{table.TypeName}> this[int index]
+        public ref {table.RowTypeName} Get(int id) 
         {{
-            get
-            {{
-                // reconstruct a Row<T> on‐the‐fly from column arrays:
-                Row<{table.TypeName}> temp = new Row<{table.TypeName}>(ids[index], default);
-                temp._index = index;
-                temp._version = versions[index];
+            if (id < 0 || id >= _flags.Length)
+                throw new KeyNotFoundException($""Row with id {{id}} does not exist in {table.TypeName}RowContainer"");
+            if(IsEmpty(id))
+                throw new KeyNotFoundException($""Row with id {{id}} does not exist in {table.TypeName}RowContainer"");
+            return ref this._facades[id];
+        }}
 
-                // reassemble T from fields:
-                var data = default({table.TypeName});
-{AssignArraysToRow(context, table)}                
-                temp.data = data;
-                return temp;
-            }}
-            set
+        internal void Remove(int index)
+        {{
+            if(!HasFlag(index, DELETED))
             {{
-                var data = value.data;
-                versions[index] = value._version;
-{AssignArraysFromRow(context, table)}
+                SetFlag(index, DELETED);
+                _freeSlots.Push(index);
             }}
+            _ids[index] = -1;
+            _facades[index] = default;
+            ClearFlag(index, ADDED);
+{RemoveArrays(context, table)}            
         }}
 
         // {DatabaseSourceGenerator.GenerationStamp()}
-        public void Clear(int _initialRowCapacity = 16)
+        public void Clear()
         {{
-            count = 0;
-            _version++;
-
-            _idToIndex.Clear();
-            if(_initialRowCapacity > ids.Length)
-                Resize(_initialRowCapacity);
-            Array.Clear(_facades, 0, _facades.Length);
-            Array.Clear(ids, 0, ids.Length);
-            Array.Clear(versions, 0, versions.Length);
-{ClearArrays(context, table)}            
+            Array.Clear(_facades, 0, _count);
+            Array.Clear(_ids, 0, _count);
+            Array.Clear(_flags, 0, _count);
+ {ClearArrays(context, table)}            
         }}
 
-{GenerateHotFieldMethods(context, table)}
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public struct RefEnumerator
-        {{
-            private readonly {table.TypeName}RowFacade[] _facades;
-            private readonly int _count;
-            private int _index;
+        public Enumerator GetEnumerator() => new Enumerator(this);
 
-            public RefEnumerator({table.TypeName}RowFacade[] facades, int count)
+        public struct Enumerator {{
+            public int Current {{ get; private set; }}
+            int index;
+            {table.TypeName}RowContainer container;
+
+            public Enumerator({table.TypeName}RowContainer container)
             {{
-                _facades = facades;
-                _count = count;
-                _index = count;
+                this.container = container;
+                this.index = -1;
+                Current = -1;
             }}
 
-            public bool MoveNext() => --_index >= 0;
-
-            public ref {table.TypeName}RowFacade Current => ref _facades[_index];
+            public bool MoveNext()
+            {{
+                while (++index < container._count)
+                {{
+                    if (!container.HasFlag(index, DELETED))
+                    {{
+                        Current = index;
+                        return true;
+                    }}
+                }}
+                return false;
+            }}
         }}
-
-        public RefEnumerator GetEnumerator() => new RefEnumerator(_facades, count);
-
     }}
-
-    // {DatabaseSourceGenerator.GenerationStamp()}
-    public static class {table.TypeName}RowContainerExtensions {{
-        public static {table.TypeName}RowContainer InternalRows(this Table<{table.TypeName}> table) => ({table.TypeName}RowContainer)table.RowContainer;
-
-{GenerateHotFieldExtensions(context, table)}
-    }}
-
-    
 
 ");
         if (!string.IsNullOrEmpty(table.NameSpace)) sb.AppendLine("}");
         context.AddSource($"{model.FileName("RowContainer", table.TypeName)}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
     
-    private static void GenerateRowContainerFacade(SourceProductionContext context, DatabaseModel model, TableModel table)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine($@"// <auto-generated/> //  {DatabaseSourceGenerator.GenerationStamp()}
-
-using System;
-using IntegrityTables;
-");
-        if (!string.IsNullOrEmpty(table.NameSpace))
-        {
-            sb.AppendLine($"namespace {table.NameSpace}");
-            sb.AppendLine("{");
-        }
-
-        sb.AppendLine($@"
-    // {DatabaseSourceGenerator.GenerationStamp()}
-    public struct {table.TypeName}RowFacade
-    {{
-        private int index;
-        private {table.TypeName}RowContainer container;
-
-        public {table.TypeName}RowFacade(int index, {table.TypeName}RowContainer container)
-        {{
-            this.index = index;
-            this.container = container;
-        }}
-
-        public int id => container.ids[index];
-        public int version {{ 
-            get => container.versions[index]; 
-            set {{
-                container.SetVersion(index, value);
-            }} 
-        }}
-{GeneratePropertyAccessors(context, table)}        
-    }}  
-
-");
-        if (!string.IsNullOrEmpty(table.NameSpace)) sb.AppendLine("}");
-        context.AddSource($"{model.FileName("RowFacade", table.TypeName)}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
-    }
-    
-    private static string GeneratePropertyAccessors(SourceProductionContext context, TableModel table)
+    private static string RemoveArrays(SourceProductionContext context, TableModel table)
     {
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
-            sb.AppendLine(@$"        public {field.QualifiedTypeName} {field.Name}
-        {{
-            get => container._{field.Name}[index];
-            set => container._{field.Name}[index] = value;
-        }}");
-        }
-        return sb.ToString();
-    }
-    
-    private static string GenerateHotFieldMethods(SourceProductionContext context, TableModel table)
-    {
-        var sb = new StringBuilder();
-        foreach (var field in table.Fields)
-        {
-            if (field.IsHotField && !field.IsReference)
-            {
-                sb.AppendLine($@"
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public struct {field.CapitalizedName}PredicateEnumerator {{
-            int index;
-            int current;
-            Func<{field.QualifiedTypeName}, bool> predicate;
-            {table.TypeName}RowContainer container;
-            
-            public {field.CapitalizedName}PredicateEnumerator GetEnumerator() => this;
-
-            public {field.CapitalizedName}PredicateEnumerator(Func<{field.QualifiedTypeName}, bool> predicate, {table.TypeName}RowContainer container)
-            {{
-                this.predicate = predicate;
-                this.container = container;
-                this.index = -1;
-            }}
-
-            public bool MoveNext()
-            {{
-                // scan forward until we either run out or hit a match
-                var values = container._{field.Name};
-                var count = container.Count; 
-                while (++index < count)
-                {{
-                    if (predicate(values[index]))
-                    {{
-                        current = container.ids[index];
-                        return true;
-                    }}
-                }}
-
-                return false;
-            }}
-
-            public int Current => current;
-
-            public List<int> ToList()
-            {{
-                var list = new List<int>();
-                while (MoveNext())
-                {{
-                    list.Add(Current);
-                }}
-                return list;
-            }}
-        }}
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public struct {field.CapitalizedName}PredicateValueEnumerator {{
-            int index;
-            int current;
-            {field.QualifiedTypeName} predicateValue;
-            {table.TypeName}RowContainer container;
-            
-            public {field.CapitalizedName}PredicateValueEnumerator GetEnumerator() => this;
-
-            public {field.CapitalizedName}PredicateValueEnumerator({field.QualifiedTypeName} predicateValue, {table.TypeName}RowContainer container)
-            {{
-                this.predicateValue = predicateValue;
-                this.container = container;
-                this.index = -1;
-            }}
-
-            public bool MoveNext()
-            {{
-                // scan forward until we either run out or hit a match
-                var values = container._{field.Name};
-                var count = container.Count; 
-                while (++index < count)
-                {{
-                    if (EqualityComparer<{field.TypeName}>.Default.Equals(predicateValue, values[index]))
-                    {{
-                        current = container.ids[index];
-                        return true;
-                    }}
-                }}
-
-                return false;
-            }}
-
-            public int Current => current;
-
-            public List<int> ToList()
-            {{
-                var list = new List<int>();
-                while (MoveNext())
-                {{
-                    list.Add(Current);
-                }}
-                return list;
-            }}
-        }}
-       
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public bool TryGetFirstBy{field.CapitalizedName}(Func<{field.QualifiedTypeName}, bool> predicate, out int id) 
-        {{
-            for(var i=0; i<count; i++) {{
-                if(predicate(_{field.Name}[i])) {{
-                    id = ids[i];
-                    return true;
-                }}
-            }}
-            id = -1;
-            return false;
-        }}
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public bool TryGetFirstBy{field.CapitalizedName}({field.QualifiedTypeName} predicateValue, out int id) 
-        {{
-            for(var i=0; i<count; i++) {{
-                if(EqualityComparer<{field.TypeName}>.Default.Equals(predicateValue, _{field.Name}[i])) {{
-                    id = ids[i];
-                    return true;
-                }}
-            }}
-            id = -1;
-            return false;
-        }}
-        
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public {field.CapitalizedName}PredicateEnumerator SelectBy{field.CapitalizedName}(Func<{field.QualifiedTypeName}, bool> predicate) 
-        {{
-            return new {field.CapitalizedName}PredicateEnumerator(predicate, this);
-        }}
-
-        // {DatabaseSourceGenerator.GenerationStamp()}
-        public {field.CapitalizedName}PredicateValueEnumerator SelectBy{field.CapitalizedName}({field.QualifiedTypeName} predicateValue) 
-        {{
-            return new {field.CapitalizedName}PredicateValueEnumerator(predicateValue, this);
-        }}");   
-            }
-        }
-        return sb.ToString();
-    }
-
-    private static string GenerateHotFieldExtensions(SourceProductionContext context, TableModel table)
-    {
-        var sb = new StringBuilder();
-        foreach (var field in table.Fields)
-        {
-            sb.AppendLine($@"
-            public static Span<{field.QualifiedTypeName}> Get{field.CapitalizedName}Span(this Table<{table.TypeName}> table) 
-            {{
-                var rc = ({table.TypeName}RowContainer)table.RowContainer;
-                return rc._{field.Name}.AsSpan(0, rc.Count);
-            }}
-");
-            
-            if (field.IsHotField && !field.IsReference)
-            {
-                sb.AppendLine($@"
-            // {DatabaseSourceGenerator.GenerationStamp()}
-            public static bool TryGetFirstBy{field.CapitalizedName}(this Table<{table.TypeName}> table, Func<{field.QualifiedTypeName}, bool> predicate, out int index) 
-            {{
-                var rc = ({table.TypeName}RowContainer)table.RowContainer;
-                return rc.TryGetFirstBy{field.CapitalizedName}(predicate, out index);
-            }}
-
-            // {DatabaseSourceGenerator.GenerationStamp()}
-            public static {table.TypeName}RowContainer.{field.CapitalizedName}PredicateEnumerator SelectBy{field.CapitalizedName}(this Table<{table.TypeName}> table, Func<{field.QualifiedTypeName}, bool> predicate) 
-            {{
-                var rc = ({table.TypeName}RowContainer)table.RowContainer;
-                return rc.SelectBy{field.CapitalizedName}(predicate);
-            }}
-
-            // {DatabaseSourceGenerator.GenerationStamp()}
-            public static bool TryGetFirstBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} predicateValue, out int index) 
-            {{
-                var rc = ({table.TypeName}RowContainer)table.RowContainer;
-                return rc.TryGetFirstBy{field.CapitalizedName}(predicateValue, out index);
-            }}
-
-            // {DatabaseSourceGenerator.GenerationStamp()}
-            public static {table.TypeName}RowContainer.{field.CapitalizedName}PredicateValueEnumerator SelectBy{field.CapitalizedName}(this Table<{table.TypeName}> table, {field.QualifiedTypeName} predicateValue) 
-            {{
-                var rc = ({table.TypeName}RowContainer)table.RowContainer;
-                return rc.SelectBy{field.CapitalizedName}(predicateValue);
-            }}");   
-            }
-        }
-        return sb.ToString();
-    }
-
-    private static string AssignArraysFromRow(SourceProductionContext context, TableModel table)
-    {
-        var sb = new StringBuilder();
-        foreach (var field in table.Fields)
-        {
-            sb.AppendLine($"                _{field.Name}[index] = data.{field.Name};");
+            if(field.IsReference)
+                sb.AppendLine($"            _{field.Name}[index] = -1;");
+            else
+                sb.AppendLine($"            _{field.Name}[index] = default;");
         }
         return sb.ToString();
     }
@@ -489,7 +216,22 @@ using IntegrityTables;
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
-            sb.AppendLine($"            Array.Clear(_{field.Name}, 0, _{field.Name}.Length);");
+            if(field.IsReference)
+                sb.AppendLine($"            new Span<int>(_{field.Name}, 0, _{field.Name}.Length).Fill(-1);");
+            else
+                sb.AppendLine($"            Array.Clear(_{field.Name}, 0, _{field.Name}.Length);");
+        }
+        return sb.ToString();
+    }
+    
+    private static string ClearIdArrays(SourceProductionContext context, TableModel table)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"            new Span<int>(_ids, 0, _ids.Length).Fill(-1);");
+        foreach (var field in table.Fields)
+        {
+            if(field.IsReference)
+                sb.AppendLine($"            new Span<int>(_{field.Name}, 0, _{field.Name}.Length).Fill(-1);");
         }
         return sb.ToString();
     }
@@ -499,47 +241,21 @@ using IntegrityTables;
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
-            sb.AppendLine($"            Array.Resize(ref _{field.Name}, _initialRowCapacity);");
-        }
-        return sb.ToString();
-    }
-    
-    private static string AssignArraysToRow(SourceProductionContext context, TableModel table)
-    {
-        var sb = new StringBuilder();
-        foreach (var field in table.Fields)
-        {
-            sb.AppendLine($"                data.{field.Name} = _{field.Name}[index];");
-        }
-        return sb.ToString();
-    }
-    
-    private static string ClearLastRow(SourceProductionContext context, TableModel table)
-    {
-        var sb = new StringBuilder();
-        foreach (var field in table.Fields)
-        {
-            sb.AppendLine($"            _{field.Name}[last] = default;");
-        }
-        return sb.ToString();
-    }
-    
-    private static string CopyLastRow(SourceProductionContext context, TableModel table)
-    {
-        var sb = new StringBuilder();
-        foreach (var field in table.Fields)
-        {
-            sb.AppendLine($"            _{field.Name}[slot] = _{field.Name}[last];");
+            if(field.IsReference)
+                sb.AppendLine($@"            Array.Resize(ref _{field.Name}, _initialRowCapacity);
+            new Span<int>(_{field.Name}, _count, _{field.Name}.Length-_count).Fill(-1);");
+            else
+                sb.AppendLine($"            Array.Resize(ref _{field.Name}, _initialRowCapacity);");
         }
         return sb.ToString();
     }
 
-    private static string AssignArrays(SourceProductionContext context, TableModel table)
+    private static string AssignFacadeFields(SourceProductionContext context, TableModel table)
     {
         var sb = new StringBuilder();
         foreach (var field in table.Fields)
         {
-            sb.AppendLine($"            _{field.Name}[slot] = row.{field.Name}();");
+            sb.AppendLine($"                facade.{field.Name} = {field.Name};");
         }
         return sb.ToString();
     }

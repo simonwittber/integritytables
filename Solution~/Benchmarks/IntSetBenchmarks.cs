@@ -1,6 +1,5 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using IntegrityTables;
 
 namespace IntegrityTables.Benchmarks;
 
@@ -15,8 +14,7 @@ public class IdSetBenchmarks
     private int[] aKeys, bKeys;
     private int[] lookupKeys;
 
-    private IdSet idSet;
-    private IntSet intSet;
+    private IntSet intSet, intSetB;
     HashSet<int> hashSet;
     
     [IterationSetup]
@@ -43,18 +41,12 @@ public class IdSetBenchmarks
             (bKeys[i], bKeys[j]) = (bKeys[j], bKeys[i]);
         }
 
-        idSet = new IdSet(aKeys);
         hashSet = new HashSet<int>(aKeys);
         intSet = new IntSet(aKeys);
+        intSetB = new IntSet(bKeys);
     }
 
-    [Benchmark]
-    public void IdSet_Iterate()
-    {
-        var x = 0;
-        foreach (var i in idSet)
-            x += i;
-    }
+    
     
     [Benchmark]
     public void IntSet_Iterate()
@@ -72,15 +64,7 @@ public class IdSetBenchmarks
             x += i;
     }
     
-    [Benchmark]
-    public void IdSet_Add()
-    {
-        var idSet = new IdSet();
-        for (var i = 0; i < N; i++)
-        {
-            idSet.Add(lookupKeys[i]);
-        }
-    }
+    
     [Benchmark]
     public void IntSet_Add()
     {
@@ -100,14 +84,7 @@ public class IdSetBenchmarks
         }
     }
     
-    [Benchmark]
-    public void IdSet_Contains()
-    {
-        for (var i = 0; i < N; i++)
-        {
-            idSet.Contains(lookupKeys[i]);
-        }
-    }
+    
     
     [Benchmark]
     public void IntSet_Contains()
@@ -127,12 +104,6 @@ public class IdSetBenchmarks
         }
     }
     
-    [Benchmark]
-    public void IdSet_IntersectWith()
-    {
-        var idSet = new IdSet(aKeys);
-        idSet.IntersectWith(bKeys);
-    }
     
     [Benchmark]
     public void IntSet_IntersectWith()
@@ -148,12 +119,6 @@ public class IdSetBenchmarks
         hashSet.IntersectWith(bKeys);
     }
     
-    [Benchmark]
-    public void IdSet_UnionWith()
-    {
-        var idSet = new IdSet(aKeys);
-        idSet.UnionWith(bKeys);
-    }
     
     [Benchmark]
     public void IntSet_UnionWith()
@@ -163,17 +128,19 @@ public class IdSetBenchmarks
     }
     
     [Benchmark]
+    public void IntSet_UnionWith_IntSet()
+    {
+        var idSet = new IntSet(aKeys);
+        idSet.UnionWith(intSetB);
+    }
+    
+    [Benchmark]
     public void HashSet_UnionWith()
     {
         var hashSet = new HashSet<int>(aKeys);
         hashSet.UnionWith(bKeys);
     }
     
-    [Benchmark]
-    public void IdSet_ExceptWith()
-    {
-        idSet.ExceptWith(bKeys);
-    }
     
     [Benchmark]
     public void IntSet_ExceptWith()
@@ -187,11 +154,6 @@ public class IdSetBenchmarks
         hashSet.ExceptWith(bKeys);
     }
     
-    [Benchmark]
-    public void IdSet_SymmetricExceptWith()
-    {
-        idSet.SymmetricExceptWith(bKeys);
-    }
     
     [Benchmark]
     public void IntSet_SymmetricExceptWith()

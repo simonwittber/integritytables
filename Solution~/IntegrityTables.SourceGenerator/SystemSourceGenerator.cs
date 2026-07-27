@@ -35,11 +35,16 @@ public class SystemSourceGenerator
         sb.AppendLine($@"    // {DatabaseSourceGenerator.GenerationStamp()}
     public partial class {system.TypeName}
     {{
+        // IsRaw: {system.IsRaw}
+        // Parameters: {string.Join(", ", system.Parameters.Select(p => $"{p.name}"))}
+        // Written Fields: {string.Join(", ", system.WrittenFields.Select(f => $"{f.Item1}.{f.Item2}"))}
+
         private IntSet entities = new();");
         
         // Generate the parameterless Execute method
+
         GenerateExecuteMethod(sb, model, system);
-        
+
         sb.AppendLine("    }");
 
         if (!string.IsNullOrEmpty(system.NameSpace))
@@ -53,22 +58,40 @@ public class SystemSourceGenerator
 
     private static void GenerateExecuteMethod(StringBuilder sb, DatabaseModel model, SystemModel system)
     {
-        sb.AppendLine(@"        public void Execute()
-        {
+        sb.AppendLine($@"        // {DatabaseSourceGenerator.GenerationStamp()}
+        public void Execute() {{
+            Prepare();
+            if(entities.Count > 500 && AllowThreadedExecution) 
+                ExecuteThreaded();
+            else 
+                ExecuteScalar();
+        }} 
+
+        // {DatabaseSourceGenerator.GenerationStamp()}
+        public void Prepare()
+        {{
             entities.Clear();");
         
 
         // Find the primary table to iterate over (first writable parameter, or first readable if no writable)
+        if (system.Parameters.Count == 0)
+        {
+            sb.AppendLine("            return; // No parameters to process.");
+            sb.AppendLine("        }");
+            return;
+        }
         var firstParam = system.Parameters[0];
-        sb.AppendLine($"            entities.UnionWith(database.{firstParam.tableModel.FacadeName}.GetEntityIdSpan());");
+        sb.AppendLine($"            entities.UnionWith(database.{firstParam.tableModel.FacadeName}.IndexOnEntityId.Keys);");
         foreach (var param in system.Parameters.Skip(1))
         {
-            if (!param.isList)
-            {
-                sb.AppendLine($"            entities.IntersectWith(database.{param.tableModel.FacadeName}.GetEntityIdSpan());");
-            }
+            sb.AppendLine($"            entities.IntersectWith(database.{param.tableModel.FacadeName}.IndexOnEntityId.Keys);");
         }
-        
+
+        sb.AppendLine("            entities.Remove(-1);");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine(@"        public void ExecuteScalar()
+        {");
         // Generate the method call
         sb.AppendLine(@$"            foreach(var entityId in entities) {{");
         
@@ -76,30 +99,40 @@ public class SystemSourceGenerator
                 
         foreach (var param in system.Parameters)
         {
-            if(param.isList)
-            {
-                sb.AppendLine($"                var {param.name} = database.{param.tableModel.FacadeName}.SelectByEntityId(entityId);");
-                args.Add($"{param.name}");
-            }
-            else
             {
                 sb.AppendLine($"                var {param.name} = database.{param.tableModel.FacadeName}.GetByEntityId(entityId);");
-                args.Add($"{(param.isWrite?"ref":"in")} {param.name}");
+                args.Add($"{param.name}");
             }           
         }
         sb.AppendLine(@$"                Execute({string.Join(", ", args)});");
-        foreach (var param in system.Parameters)
-        {
-            if(param.isWrite)
-            {
-                sb.AppendLine($"                database.{param.tableModel.FacadeName}.Update(ref {param.name});");
-            }
-                   
-        }
+        
         sb.AppendLine(@$"            }}");
         sb.AppendLine(@$"        }}");
-
-                
-        
+        sb.AppendLine();
+        sb.AppendLine(@"        public void ExecuteThreaded()
+        {
+            var pages = ObjectPool<List<IntSet.BitEnumerator>>.Get();
+            pages.Clear();
+            foreach(var page in entities.Pages()) pages.Add(page);
+            Threaded.ForEach(0, pages.Count, (int start, int end) => {
+                for (int i = start; i < end; i++)
+                {
+                    var page = pages[i];
+                    foreach (var entityId in page)
+                    {");
+        foreach (var param in system.Parameters)
+        {
+            {
+                sb.AppendLine($"                        var {param.name} = database.{param.tableModel.FacadeName}.GetByEntityId(entityId);");
+            }           
+        }
+        sb.AppendLine(@$"                       Execute({string.Join(", ", args)});
+                    }}
+                }}
+            }});
+            pages.Clear();
+            ObjectPool<List<IntSet.BitEnumerator>>.Return(pages);
+        }}
+        ");
     }
 }

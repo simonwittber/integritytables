@@ -12,27 +12,17 @@ public static partial class ModelBuilder
     private const string ServiceAttributeName = "GenerateServiceAttribute";
     private const string SystemAttributeName = "GenerateSystemAttribute";
 
-    public static DatabaseModel Build(SourceProductionContext context, INamedTypeSymbol databaseClass, ImmutableArray<INamedTypeSymbol> allTableStructs, ImmutableArray<INamedTypeSymbol> allServiceClasses, ImmutableArray<INamedTypeSymbol> allSystemClasses)
+    public static DatabaseModel Build(SourceProductionContext context, Compilation compilation, INamedTypeSymbol databaseClass, ImmutableArray<INamedTypeSymbol> allTableStructs, ImmutableArray<INamedTypeSymbol> allSystemClasses)
     {
         var model = new DatabaseModel
         {
             DatabaseSymbol = databaseClass,
             Tables = [],
-            OnTablesCreatedMethods = []
         };
-        
+
         //see if databaseClass has [GenerateDatabase] attribute with GenerateForUnity = true
         var generateDatabaseAttribute = databaseClass.GetAttributes()
             .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == $"{Namespace}.GenerateDatabaseAttribute");
-        if (generateDatabaseAttribute != null)
-        {
-            var generateForUnityArgument = generateDatabaseAttribute.NamedArguments
-                .FirstOrDefault(a => a.Key == "GenerateForUnity");
-            if (generateForUnityArgument.Value is {Kind: TypedConstantKind.Primitive, Value: bool and true})
-            {
-                model.GenerateForUnity = true;
-            }
-        }
 
         var tableStructs = FilterForForDatabaseType(allTableStructs, databaseClass, $"{Namespace}.{TableAttributeName}").ToImmutableArray();
         foreach (var tableStruct in tableStructs)
@@ -40,26 +30,16 @@ public static partial class ModelBuilder
             var tableModel = BuildTableModel(context, model, tableStruct);
             model.Tables.Add(tableModel);
         }
-        
-        var serviceClasses = FilterForForDatabaseType(allServiceClasses, databaseClass, $"{Namespace}.{ServiceAttributeName}").ToImmutableArray();
-        foreach (var serviceClass in serviceClasses)
-        {
-            var serviceModel = BuildServiceModel(context, model, serviceClass);
-            if(serviceModel != null)
-                model.ServiceModels.Add(serviceModel);
-        }
 
         var systemClasses = FilterForForDatabaseType(allSystemClasses, databaseClass, $"{Namespace}.{SystemAttributeName}").ToImmutableArray();
         foreach (var systemClass in systemClasses)
         {
-            var systemModel = BuildSystemModel(context, model, systemClass);
-            if(systemModel != null)
+            var systemModel = BuildSystemModel(context, compilation, model, systemClass);
+            if (systemModel != null)
                 model.SystemModels.Add(systemModel);
         }
-        
-        CollectOnTablesCreatedMethods(context, databaseClass, model);
+
         BuildTableFieldModels(context, model);
-        BuildValidatorModels(context, model);
         BuildTriggers(context, model);
         BuildUniqueIndexes(model);
         BuildDependencyMap(model);
@@ -69,26 +49,13 @@ public static partial class ModelBuilder
         return model;
     }
 
-    private static ServiceModel BuildServiceModel(SourceProductionContext context, DatabaseModel model, INamedTypeSymbol serviceClass)
-    {
-        var serviceModel = new ServiceModel()
-        {
-            DatabaseModel = model,
-            ServiceSymbol = serviceClass
-        };
-        var attributes = serviceClass.GetAttributes();
-        attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == $"{Namespace}.{ServiceAttributeName}");
-        
-        return serviceModel;
-    }
-
-    private static SystemModel BuildSystemModel(SourceProductionContext context, DatabaseModel model, INamedTypeSymbol systemClass)
+    private static SystemModel BuildSystemModel(SourceProductionContext context, Compilation compilation, DatabaseModel model, INamedTypeSymbol systemClass)
     {
         var systemModel = new SystemModel()
         {
             SystemSymbol = systemClass
         };
-
+        
         // Find the Execute method and analyze its parameters
         var executeMethod = systemClass.GetMembers("Execute")
             .OfType<IMethodSymbol>()
@@ -96,52 +63,23 @@ public static partial class ModelBuilder
 
         if (executeMethod != null)
         {
+            // get all parameters of the Execute method
+            // make sure they are tableModel.RowTypeName
             foreach (var parameter in executeMethod.Parameters)
             {
-                var isList = false;
-                INamedTypeSymbol tableType = null;
-
-                // Check if the parameter type is Row<T> where T is a table type
-                if (parameter.Type is INamedTypeSymbol parameterType && 
-                    parameterType.IsGenericType && 
-                    parameterType.Name == "Row" &&
-                    parameterType.TypeArguments.Length == 1)
+                var isValid = false;
+                if (parameter.Type is INamedTypeSymbol nts)
                 {
-                    tableType = parameterType.TypeArguments[0] as INamedTypeSymbol;
-                }
-                // Check if the parameter type is IList<Row<T>> where T is a table type
-                else if (parameter.Type is INamedTypeSymbol listType &&
-                         listType.IsGenericType &&
-                         (listType.Name == "QueryByIdEnumerator") &&
-                         listType.TypeArguments.Length == 1 &&
-                         listType.TypeArguments[0] is INamedTypeSymbol rowType)
-                {
-                    tableType = rowType;
-                    isList = true;
-                }
-
-                if (tableType != null)
-                {
-                    var tableModel = model.TableMap[tableType];
-
-                    // Determine if it's read or write based on ref kind
-                    if (parameter.RefKind == RefKind.In)
+                    var tableModel = model.TableMap.Values.FirstOrDefault(t => t.RowTypeName == nts.Name);
+                    if (tableModel != null)
                     {
-                        // 'in' parameters are read-only
-                        systemModel.ReadDependencies.Add((tableModel, isList));
-                    }
-                    else if (parameter.RefKind == RefKind.Ref || parameter.RefKind == RefKind.Out)
-                    {
-                        // 'ref' and 'out' parameters are writable
-                        systemModel.WriteDependencies.Add(tableModel);
+                        systemModel.Parameters.Add((parameter.Name, tableModel));
+                        systemModel.IsRaw = false;
                     }
                     else
                     {
-                        // Default behavior - assume read-only for value parameters
-                        systemModel.ReadDependencies.Add((tableModel, isList));
+                        ReportConventionError(context, parameter, $"System.Execute method parameter must be a table model type, not {parameter.Type.Name}");
                     }
-
-                    systemModel.Parameters.Add((parameter.Name, tableModel, isList, parameter.RefKind == RefKind.Ref || parameter.RefKind == RefKind.Out));
                 }
             }
         }
@@ -151,48 +89,16 @@ public static partial class ModelBuilder
 
     private static void BuildGroups(DatabaseModel model)
     {
-        model.Groups = model.Tables.ToLookup(tableModel => tableModel.GroupName??"Global");
-    }
-
-    private static void CollectOnTablesCreatedMethods(SourceProductionContext context, INamedTypeSymbol databaseClass, DatabaseModel model)
-    {
-        // collect OnTablesCreated decorated methods
-        var onTablesCreatedMethods = databaseClass.GetMembers()
-            .Where(m => m.Kind == SymbolKind.Method)
-            .Select(m => (method: (IMethodSymbol) m, attribute: m.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == $"{Namespace}.OnTablesCreatedAttribute")))
-            .Where(ma => ma.attribute != null);
-
-        foreach (var (method, _) in onTablesCreatedMethods)
-        {
-            if(method.Parameters.Length > 0) 
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    BrokenConvention,
-                    method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax().GetLocation(),
-                    method.Name, "must not have parameters"
-                ));
-                continue;
-            }
-            if (method.ReturnType.Name != "Void")
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    BrokenConvention,
-                    method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax().GetLocation(),
-                    method.Name, "must return void"
-                ));
-                continue;
-            }
-            model.OnTablesCreatedMethods.Add(method.Name);
-        }
+        model.Groups = model.Tables.ToLookup(tableModel => tableModel.GroupName ?? "Global");
     }
 
     private static void BuildDependencyMap(DatabaseModel model)
     {
-        
         foreach (var table in model.Tables)
         {
             table.Dependencies = new List<FieldModel>();
         }
+
         foreach (var table in model.Tables)
         {
             foreach (var field in table.Fields)
@@ -202,7 +108,6 @@ public static partial class ModelBuilder
                     referencedTableModel.Dependencies.Add(field);
             }
         }
-        
     }
 
     private static void BuildUniqueIndexes(DatabaseModel model)
@@ -226,10 +131,7 @@ public static partial class ModelBuilder
         foreach (var declaration in declarations)
         {
             var attribute = declaration.GetAttributes()
-                .FirstOrDefault(a =>
-                {
-                    return a.AttributeClass?.ToDisplayString() == attributeName;
-                });
+                .FirstOrDefault(a => { return a.AttributeClass?.ToDisplayString() == attributeName; });
             if (attribute != null)
             {
                 // get name from constructor argument

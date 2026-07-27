@@ -37,7 +37,11 @@ public class SystemModel
         }
     }
 
-    public List<(string name, TableModel tableModel, bool isList, bool isWrite)> Parameters = new();
+    public Dictionary<TableModel, List<string>> AccessedRowFields { get; set; }
+    public bool IsRaw { get; set; }
+    public List<(string, string)> WrittenFields { get; set; } = new();
+
+    public List<(string name, TableModel tableModel)> Parameters = new();
     public List<(TableModel tableModel, bool isList)> ReadDependencies = new();
     public List<TableModel> WriteDependencies = new();
 }

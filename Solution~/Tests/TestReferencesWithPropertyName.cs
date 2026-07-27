@@ -1,0 +1,35 @@
+namespace Tests;
+
+[TestFixture]
+public class TestReferencesWithPropertyName
+{
+    [Test]
+    public void TestPropertyNameExists()
+    {
+        var db = new Database();
+        var dept = db.DepartmentTable.Add(name : "HR" );
+        var id = db.EmployeeTable.Add(name:"John Doe", departmentId: dept);
+        var row = db.EmployeeTable.Get(id);
+        Assert.That((int)row.departmentId, Is.EqualTo(dept));
+        var deptRow = row.Department;
+        Assert.That(deptRow.name, Is.EqualTo("HR"));
+    }
+    
+    [Test]
+    public void TestPropertyNameNotExists()
+    {
+        var db = new Database();
+        var dept = db.DepartmentTable.Add(name : "HR" );
+        var id = db.EmployeeTable.Add(name:"John Doe", departmentId: dept);
+
+        var row = db.EmployeeTable.Get(id);
+        
+        Assert.Throws<KeyNotFoundException>(() =>
+        {
+            var location = row.Location;
+        });
+    }
+    
+    
+    
+}
